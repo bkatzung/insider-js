@@ -16,11 +16,33 @@ export const Partner = (() => {
 			// Insider properties (this.#insider.prop) now available here
 		}
 
-		// Standard handoff-pattern class-method
+		/**
+		 * Standard handoff-pattern class-method
+		 * (called by Base._getInsider if trusted)
+		 * @param {Object} insider - The requested instance's #insider
+		 * @param {Function} receiver - The receiver function to call
+		 */
 		static _passInsider (insider, receiver) {
 			this.#insiderBaton = insider;
 			receiver();
 			this.#insiderBaton = null;
+		}
+
+		/**
+		 * OPTIONAL cross-instance #insider access
+		 * @param {Partner|Base} other - The instance for which #insider is requested
+		 * @returns {Object} The other instance's #insider state object
+		 */
+		#getOtherInsider (other) {
+			// Native JS cross-instance private #insider access
+			if (other instanceof cls) return other.#insider;
+
+			// Cross-class cross-instance #insider access
+			if (other instanceof Base) {
+				let insider;
+				Base._getInsider(cls, other, () => insider = cls.#insiderBaton);
+				return insider;
+			}
 		}
 	});
 	Object.freeze(cls.prototype);

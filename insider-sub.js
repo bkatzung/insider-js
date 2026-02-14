@@ -22,8 +22,9 @@
 		}
 
 		/*
-		 * Baton handoff function (all sub-classes); called by Base._getInsider
-		 * @param {Object} insider - The requested instances #insider
+		 * Baton handoff function (all sub-classes)
+		 * (called by Base._getInsider if trusted)
+		 * @param {Object} insider - The requested instance's #insider
 		 * @param {Function} receiver - The receiver function to call
 		 */
 		static _passInsider (insider, receiver) {
