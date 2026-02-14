@@ -120,6 +120,54 @@ export const Sub = (() => {
 })();
 ```
 
+### Partner-Class Pattern (Non-Inheritance Variant)
+
+The insider pattern also supports trusted partner classes that are not part of the inheritance hierarchy. This is useful for composition-based designs where a partner class needs private access to an unrelated Base class instance's insider state. Excerpted from [`insider-partner.js`](insider-partner.js):
+
+```javascript
+// Partner-class insider-pattern variant
+import { Base } from './insider-trusted.js';
+
+export const Partner = (() => {
+	const cls = Object.freeze(class Partner { // Unrelated to Base
+		static #insiderBaton;
+		#baseInstance; // Reference instance (instead of `this`)
+		#insider;
+
+		constructor (baseInstance) {
+			// Accept base instance parameter instead of using `this`
+			this.#baseInstance = baseInstance;
+			Base._getInsider(cls, baseInstance, () => this.#insider = cls.#insiderBaton);
+			// Insider properties (this.#insider.prop) now available here
+		}
+
+		// Standard handoff-pattern class-method
+		static _passInsider (insider, receiver) {
+			this.#insiderBaton = insider;
+			receiver();
+			this.#insiderBaton = null;
+		}
+	});
+	Object.freeze(cls.prototype);
+	return cls;
+})();
+```
+
+**Key differences from the Sub-Class pattern:**
+
+1. **No inheritance**: The Partner class does not extend Base
+2. **Instance parameter**: The constructor accepts a Base instance rather than calling `super()`
+3. **Trust list inclusion**: The Partner class must still be added to the trusted classes list in [`insider-trusted.js`](insider-trusted.js)
+
+**Use cases for the partner pattern:**
+
+- **Composition over inheritance**: When using composition-based design patterns
+- **Cross-hierarchy access**: Allowing classes from different hierarchies to work with Base instances
+- **Adapter/Wrapper patterns**: Creating adapters or wrappers that need insider access
+- **Service classes**: Utility or service classes that operate on Base instances
+
+**Security note**: Since the pattern doesn't verify inheritance relationships, any class in the trust list can access Base instances' insider state. Trust must be carefully managed.
+
 ## Cross-Instance Insider Access
 
 Trusted classes can access insider state from other instances in two ways:
