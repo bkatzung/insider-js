@@ -1,6 +1,6 @@
 # insider-js
 
-A pattern for implementing insider (trusted-only) properties and methods in native JavaScript using ES2022 private fields and explicit trust declarations.
+A pattern for implementing "insider" (trusted-only) properties in native JavaScript using ES2022 private fields and explicit trust declarations.
 
 ## Overview
 
