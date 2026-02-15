@@ -1,5 +1,11 @@
-// Assuming Partner is in the Base's trusted-class list
-// Follows sub-class pattern with a couple of small changes
+/*
+ * Insider "partner"-class pattern
+ * (Shared #insider state across base + trusted (but unrelated) classes)
+ * Follows sub-class pattern with a couple of small changes
+ *
+ * Last modified: 2026-02-15
+ * Author: Brian Katzung <briank@kappacs.com>
+ */
 
 import { Base } from './insider-trusted.js';
 

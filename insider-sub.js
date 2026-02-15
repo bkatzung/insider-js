@@ -1,6 +1,6 @@
 /*
  * "Insider" sub-class pattern
- * (Shared #insider state across base + trusted sub-classed)
+ * (Shared #insider state across base + trusted sub-classes)
  *
  * Last modified: 2026-02-13
  * Author: Brian Katzung <briank@kappacs.com>

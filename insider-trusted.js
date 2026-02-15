@@ -12,8 +12,9 @@
 
 // "Barrel" bundling of base + trusted sub-classes
 import { Base } from './insider-base.js';
+import { Partner } from './insider-partner.js';
 import { Sub } from './insider-sub.js';
-export { Base, Sub };
+export { Base, Partner, Sub };
 
 let trusted;
 
@@ -21,6 +22,6 @@ let trusted;
 // (but not before the classes are initialized)
 export const getTrusted = () => {
 	// Adjust the trusted-class array below as required
-	trusted ||= Object.freeze([Sub]);
+	trusted ||= Object.freeze([Partner, Sub]);
 	return trusted;
 };
