@@ -170,21 +170,24 @@ export const Partner = (() => {
 
 ## Cross-Instance Insider Access
 
-Trusted classes can access insider state from other instances in two ways:
+Trusted classes can optionally access insider state from other instances as follows:
 
 ```javascript
 class Sub extends Base {
     // ...
 
-	// OPTIONAL: Two ways to get another instance's #insider
-	#getOtherInsider (other) {
-		// #1: Only works if other instanceof cls (at least as derived in same hierarchy)
-		const insider1 = other.#insider;
+	// OPTIONAL: Get another instance's #insider
+	// (sub-class version)
+	#getInsiderFor (other) {
+		// Same class: use native JS cross-instance private #insider access
+		if (other instanceof cls) return other.#insider;
 		
-		// #2: Works for any instance (if called from a trusted-sub-class method)
-		let insider2;
-		Base._getInsider(cls, other, () => insider2 = cls.#insiderBaton);
-		return insider2;
+		// instanceof Base (cross-class cross-instance): use Base._getInsider
+		if (other instanceof Base) {
+			let insider;
+			Base._getInsider(cls, other, () => insider = cls.#insiderBaton);
+			return insider;
+		}
 	}
 }
 ```

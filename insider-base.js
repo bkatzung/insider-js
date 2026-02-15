@@ -37,6 +37,13 @@ export const Base = (() => {
 			// Use the supplied class-level handoff method to pass #insider to the receiver
 			reqCls._passInsider(instance.#insider, receiver);
 		}
+
+		// OPTIONAL: Get another instance's #insider
+		// (base-class version)
+		#getInsiderFor (other) {
+			// Use native JS cross-instance private #insider access
+			if (other instanceof cls) return other.#insider;
+		}
 	});
 	Object.freeze(cls.prototype);
 	return cls;

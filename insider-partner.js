@@ -33,11 +33,11 @@ export const Partner = (() => {
 		 * @param {Partner|Base} other - The instance for which #insider is requested
 		 * @returns {Object} The other instance's #insider state object
 		 */
-		#getOtherInsider (other) {
-			// Native JS cross-instance private #insider access
+		#getInsiderFor (other) {
+			// Same class: use native JS cross-instance private #insider access
 			if (other instanceof cls) return other.#insider;
 
-			// Cross-class cross-instance #insider access
+			// instanceof Base (cross-class cross-instance): use Base._getInsider
 			if (other instanceof Base) {
 				let insider;
 				Base._getInsider(cls, other, () => insider = cls.#insiderBaton);
