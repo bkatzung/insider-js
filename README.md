@@ -4,7 +4,7 @@ A pattern for implementing "insider" (trusted-only) properties in native JavaScr
 
 ## Overview
 
-JavaScript's private fields (`#`) provide instance-level encapsulation, but sometimes you need to share private state across a controlled set of trusted classes while preventing access from untrusted subclasses. This library provides a secure pattern to implement "insider" properties—private state shared only among explicitly trusted classes in a hierarchy.
+JavaScript's private fields (`#`) provide class-level encapsulation, but sometimes you need to share private state across a controlled set of trusted classes while preventing access from untrusted subclasses. This library provides a secure pattern to implement "insider" properties—private state shared only among explicitly trusted classes in a hierarchy.
 
 ## Features
 
