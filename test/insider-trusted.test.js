@@ -3,28 +3,24 @@
  */
 
 import { assertEquals, assertExists, assertThrows } from 'https://deno.land/std@0.208.0/assert/mod.ts';
-import { Base, Sub, getTrusted } from '../insider-trusted.js';
+import { Base, Sub, Partner, isTrusted } from '../insider-trusted.js';
 
-Deno.test('Trust - getTrusted should return an array', () => {
-	const trusted = getTrusted();
-	assertExists(trusted);
-	assertEquals(Array.isArray(trusted), true);
+Deno.test('Trust - isTrusted should be a function', () => {
+	assertExists(isTrusted);
+	assertEquals(typeof isTrusted, 'function');
 });
 
-Deno.test('Trust - getTrusted should include Sub in trusted list', () => {
-	const trusted = getTrusted();
-	assertEquals(trusted.includes(Sub), true);
+Deno.test('Trust - isTrusted should return true for Sub', () => {
+	assertEquals(isTrusted(Sub), true);
 });
 
-Deno.test('Trust - getTrusted should return frozen array', () => {
-	const trusted = getTrusted();
-	assertEquals(Object.isFrozen(trusted), true);
+Deno.test('Trust - isTrusted should return true for Partner', () => {
+	assertEquals(isTrusted(Partner), true);
 });
 
-Deno.test('Trust - getTrusted should return same array on multiple calls', () => {
-	const trusted1 = getTrusted();
-	const trusted2 = getTrusted();
-	assertEquals(trusted1 === trusted2, true);
+Deno.test('Trust - isTrusted should return false for untrusted class', () => {
+	class UntrustedClass {}
+	assertEquals(isTrusted(UntrustedClass), false);
 });
 
 Deno.test('Trust - Base should export correctly', () => {
@@ -81,25 +77,16 @@ Deno.test('Trust - Base should reject untrusted classes', () => {
 	);
 });
 
-Deno.test('Trust - trusted list should be immutable', () => {
-	const trusted = getTrusted();
-	const originalLength = trusted.length;
-	
-	// Try to modify the array
-	assertThrows(() => {
-		trusted.push(class FakeClass {});
-	});
-	
-	// Length should remain unchanged
-	assertEquals(trusted.length, originalLength);
-});
-
 Deno.test('Trust - Base._getInsider should be accessible', () => {
 	assertEquals(typeof Base._getInsider, 'function');
 });
 
 Deno.test('Trust - Sub._passInsider should be accessible', () => {
 	assertEquals(typeof Sub._passInsider, 'function');
+});
+
+Deno.test('Trust - Partner._passInsider should be accessible', () => {
+	assertEquals(typeof Partner._passInsider, 'function');
 });
 
 Deno.test('Trust - multiple Sub instances should all be trusted', () => {
@@ -121,10 +108,12 @@ Deno.test('Trust - barrel export should provide all necessary components', () =>
 	// Verify all exports are present
 	assertExists(Base);
 	assertExists(Sub);
-	assertExists(getTrusted);
+	assertExists(Partner);
+	assertExists(isTrusted);
 	
 	// Verify they are the correct types
 	assertEquals(typeof Base, 'function');
 	assertEquals(typeof Sub, 'function');
-	assertEquals(typeof getTrusted, 'function');
+	assertEquals(typeof Partner, 'function');
+	assertEquals(typeof isTrusted, 'function');
 });

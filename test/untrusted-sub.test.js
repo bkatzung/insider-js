@@ -160,25 +160,17 @@ Deno.test('Untrusted - attempting to access insider from outside class hierarchy
 	);
 });
 
-Deno.test('Untrusted - attempting to modify trusted list should fail', async () => {
-	// The trusted list should be frozen and immutable
-	const { getTrusted } = await import('../insider-trusted.js');
-	const trusted = getTrusted();
+Deno.test('Untrusted - isTrusted should reject untrusted classes', async () => {
+	// isTrusted should return false for classes not in the trusted list
+	const { isTrusted } = await import('../insider-trusted.js');
 	
-	const originalLength = trusted.length;
+	class FakeClass {}
+	class AnotherFakeClass {}
 	
-	// Try to add to the list
-	assertThrows(() => {
-		trusted.push(class FakeClass {});
-	});
-	
-	// Try to modify an element
-	assertThrows(() => {
-		trusted[0] = class FakeClass {};
-	});
-	
-	// Verify list is unchanged
-	assertEquals(trusted.length, originalLength);
+	// These should not be trusted
+	assertEquals(isTrusted(FakeClass), false);
+	assertEquals(isTrusted(AnotherFakeClass), false);
+	assertEquals(isTrusted(class Anonymous {}), false);
 });
 
 Deno.test('Untrusted - subclass of trusted class is not automatically trusted', async () => {
@@ -218,11 +210,9 @@ Deno.test('Untrusted - cannot access Base private fields directly', () => {
 	
 	// Private fields should not be accessible
 	assertEquals(instance['#insider'], undefined);
-	assertEquals(instance['#trusted'], undefined);
 	assertEquals(instance['#insiderBaton'], undefined);
 	
 	// Static private fields should not be accessible
-	assertEquals(Base['#trusted'], undefined);
 	assertEquals(Base['#insiderBaton'], undefined);
 });
 

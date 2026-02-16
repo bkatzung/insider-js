@@ -9,21 +9,19 @@ import { Base, Partner } from '../insider-trusted.js';
 
 // Create instrumented TestBase for testing
 const TestBase = (() => {
-	const getTrusted = () => Object.freeze([TestPartner]);
+	const isTrusted = (cls) => [TestPartner].includes(cls);
 	const cls = Object.freeze(class TestBase {
-		static #trusted;
 		static #insiderBaton = null;
 		#insider = { testProp: 'test-value', count: 42 };
 
 		constructor(customInsider) {
-			cls.#trusted ||= getTrusted();
 			if (customInsider) { // For testing
 				this.#insider = customInsider;
 			}
 		}
 
 		static _getInsider(reqCls, instance, receiver) {
-			if (!cls.#trusted.includes(reqCls)) throw new Error('Untrusted request');
+			if (!isTrusted(reqCls)) throw new Error('Untrusted request');
 			const passProps = Object.getOwnPropertyDescriptor(reqCls, '_passInsider');
 			if (typeof passProps.value !== 'function' || passProps.writable !== false || passProps.configurable !== false) {
 				throw new Error('Unsafe handoff');

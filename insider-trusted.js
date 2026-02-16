@@ -16,12 +16,21 @@ import { Partner } from './insider-partner.js';
 import { Sub } from './insider-sub.js';
 export { Base, Partner, Sub };
 
+/*
+ * List of trusted classes.
+ * Populated on first use (after classes are initialized).
+ * @type {Array|Set|undefined}
+ */
 let trusted;
 
-// Return the trusted sub-class list
-// (but not before the classes are initialized)
-export const getTrusted = () => {
-	// Adjust the trusted-class array below as required
-	trusted ||= Object.freeze([Partner, Sub]);
-	return trusted;
+/**
+ * Is a class on the trusted list?
+ * @param {Class} cls - The class object in question
+ * @returns {boolean} Whether the class is on the trusted list
+ */
+export const isTrusted = (cls) => {
+	// Adjust the trusted-class array (or Set) below as required
+	trusted ||= [Sub, Partner]; // (Array) ideally, most common first
+	// trusted ||= new Set([...]); // (Set) more performant for long lists
+	return trusted.includes(cls); // trusted.has(cls) if using a Set
 };

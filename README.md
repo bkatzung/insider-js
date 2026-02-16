@@ -25,19 +25,30 @@ Define which classes are trusted to access insider state. From [`insider-trusted
 ```javascript
 // "Barrel" bundling of base + trusted sub-classes
 import { Base } from './insider-base.js';
+import { Partner } from './insider-partner.js';
 import { Sub } from './insider-sub.js';
-export { Base, Sub };
+export { Base, Partner, Sub };
 
 let trusted;
 
-// Return the trusted sub-class list
-// (but not before the classes are initialized)
-export const getTrusted = () => {
-	// Adjust the trusted-class array below as required
-	trusted ||= Object.freeze([Sub]);
-	return trusted;
+/**
+ * Is a class on the trusted list?
+ * @param {Class} cls - The class object in question
+ * @returns {boolean} Whether the class is on the trusted list
+ */
+export const isTrusted = (cls) => {
+	// Adjust the trusted-class array (or Set) below as required
+	trusted ||= [Sub, Partner]; // (Array) ideally, most common first
+	// trusted ||= new Set([...]); // (Set) more performant for long lists
+	return trusted.includes(cls); // trusted.has(cls) if using a Set
 };
 ```
+
+This abstraction allows for flexible implementation options:
+- **Array**: Simple and efficient for small lists (use `.includes()`)
+- **Set**: Better performance for larger lists (use `.has()`)
+- **Switch/if statements**: Direct logic for specific classes
+- **Other data structures**: Any approach that returns a boolean
 
 ### Base-Class Pattern
 
@@ -45,19 +56,12 @@ Incorporate the base-class pattern into your base class. Excerpted from [`inside
 
 ```javascript
 // Base-class insider-pattern essentials
-import { getTrusted } from './insider-trusted.js';
+import { isTrusted } from './insider-trusted.js';
 
 export const Base = (() => {
 	const cls = Object.freeze(class Base {
-		static #trusted; // Base-class cached trusted-sub-class array
 		static #insiderBaton = null; // Per-class handoff baton
 		#insider = { /* Instance insider properties */ };
-
-		// Base-class constructor
-		constructor () {
-			// Cache trusted sub-class list upon first instantiation
-			cls.#trusted ||= getTrusted();
-		}
 
 		/*
 		 * Base-class-only class-method to pass #insider access
@@ -67,7 +71,7 @@ export const Base = (() => {
 		 */
 		static _getInsider (reqCls, instance, receiver) {
 			// Request must be for a class on the trusted list
-			if (!cls.#trusted.includes(reqCls)) throw new Error('Untrusted request');
+			if (!isTrusted(reqCls)) throw new Error('Untrusted request');
 			// Make sure the handoff class-method is a frozen function
 			const passProps = Object.getOwnPropertyDescriptor(reqCls, '_passInsider');
 			if (typeof passProps.value !== 'function' || passProps.writable !== false || passProps.configurable !== false) throw new Error('Unsafe handoff');
@@ -198,11 +202,11 @@ The pattern uses four key mechanisms:
 
 1. **Private Fields (`#insider`)**: Each trusted class in the hierarchy has its own private `#insider` field that references the same shared insider properties object.
 
-2. **Trust List**: The base class maintains a frozen array of explicitly trusted classes that are allowed to access insider state.
+2. **Trust Verification**: The `isTrusted()` function checks whether a class is allowed to access insider state, with flexible implementation options (Array, Set, switch statements, etc.).
 
 3. **Baton Handoff**: A secure handoff mechanism uses a temporary static baton to pass the `#insider` reference from the base class to trusted subclasses.
 
-4. **Security Verification**: The base class verifies that requesting classes are on the trust list and that their handoff methods are properly frozen before granting access.
+4. **Security Verification**: The base class verifies that requesting classes pass the trust check and that their handoff methods are properly frozen before granting access.
 
 ## Property Access Levels
 

@@ -7,30 +7,25 @@ let trustedOverride = null;
 
 // Create a test-specific Base class with instrumentation
 const TestBase = (() => {
-	let getTrustedCalled = false;
+	let isTrustedCalled = false;
 	let trustedList = null;
 
-	const getTrusted = () => {
+	const isTrusted = (cls) => {
 		if (trustedOverride) {
-			[trustedList, trustedOverride] = [trustedOverride, null];
-			return trustedList;
+			trustedList = trustedOverride;
+			trustedOverride = null;
 		}
-		getTrustedCalled = true;
-		trustedList ||= Object.freeze([TestSub]);
-		return trustedList;
+		isTrustedCalled = true;
+		trustedList ||= [TestSub];
+		return trustedList.includes(cls);
 	};
 
 	const cls = Object.freeze(class TestBase {
-		static #trusted;
 		static #insiderBaton = null;
 		#insider = { testProp: 'initialized' };
 
-		constructor() {
-			cls.#trusted ||= getTrusted();
-		}
-
 		static _getInsider(reqCls, instance, receiver) {
-			if (!cls.#trusted.includes(reqCls)) throw new Error('Untrusted request');
+			if (!isTrusted(reqCls)) throw new Error('Untrusted request');
 			const passProps = Object.getOwnPropertyDescriptor(reqCls, '_passInsider');
 			if (typeof passProps.value !== 'function' || passProps.writable !== false || passProps.configurable !== false) {
 				throw new Error('Unsafe handoff');
@@ -39,16 +34,16 @@ const TestBase = (() => {
 		}
 
 		// Instrumentation methods
-		static wasGetTrustedCalled() {
-			return getTrustedCalled;
+		static wasIsTrustedCalled() {
+			return isTrustedCalled;
 		}
 
 		static resetInstrumentation() {
-			getTrustedCalled = false;
+			isTrustedCalled = false;
 		}
 
 		static resetTrusted () {
-			trustedList = this.#trusted = null;
+			trustedList = null;
 		}
 	});
 	Object.freeze(cls.prototype);
