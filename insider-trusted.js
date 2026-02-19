@@ -1,16 +1,16 @@
 /*
  * "Insider" trust-declaration pattern
- * (For shared #insider state across base + trusted sub-classes)
+ * (For shared #insider state across base + trusted partner-classes)
  *
- * This file allows you to adjust the trusted sub-classes list for
+ * This file allows you to adjust the trusted partner-classes list for
  * different deployments (applications) without changing the module
  * code.
  *
- * Last modified: 2026-02-13
+ * Last modified: 2026-02-18
  * Author: Brian Katzung <briank@kappacs.com>
  */
 
-// "Barrel" bundling of base + trusted sub-classes
+// "Barrel" bundling of base + trusted partner-classes
 import { Base } from './insider-base.js';
 import { Partner } from './insider-partner.js';
 import { Sub } from './insider-sub.js';

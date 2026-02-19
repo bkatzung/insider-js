@@ -135,12 +135,9 @@ import { Base } from './insider-trusted.js';
 export const Partner = (() => {
 	const cls = Object.freeze(class Partner { // Unrelated to Base
 		static #insiderBaton;
-		#baseInstance; // Reference instance (instead of `this`)
-		#insider;
 
 		constructor (baseInstance) {
 			// Accept base instance parameter instead of using `this`
-			this.#baseInstance = baseInstance;
 			Base._getInsider(cls, baseInstance, () => this.#insider = cls.#insiderBaton);
 			// Insider properties (this.#insider.prop) now available here
 		}

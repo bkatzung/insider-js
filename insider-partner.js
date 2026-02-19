@@ -1,9 +1,9 @@
 /*
  * Insider "partner"-class pattern
- * (Shared #insider state across base + trusted (but unrelated) classes)
+ * (Shared #insider state across base + trusted (but unrelated) partner-classes)
  * Follows sub-class pattern with a couple of small changes
  *
- * Last modified: 2026-02-15
+ * Last modified: 2026-02-18
  * Author: Brian Katzung <briank@kappacs.com>
  */
 
@@ -12,12 +12,10 @@ import { Base } from './insider-trusted.js';
 export const Partner = (() => {
 	const cls = Object.freeze(class Partner { // ** Unrelated to Base **
 		static #insiderBaton;
-		#baseInstance; // Reference instance (instead of `this`)
 		#insider;
 
 		constructor (baseInstance) {
 			// Accept base instance parameter instead of using `this`
-			this.#baseInstance = baseInstance;
 			Base._getInsider(cls, baseInstance, () => this.#insider = cls.#insiderBaton);
 			// Insider properties (this.#insider.prop) now available here
 		}
