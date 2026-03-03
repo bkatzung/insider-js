@@ -1,7 +1,7 @@
 /*
  * Insider "partner"-class pattern
  * (Shared #insider state across base + trusted (but unrelated) partner-classes)
- * Follows sub-class pattern with a couple of small changes
+ * (Similar to sub-class pattern, but constructor takes a base instance)
  *
  * Last modified: 2026-02-18
  * Author: Brian Katzung <briank@kappacs.com>

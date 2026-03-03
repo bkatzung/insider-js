@@ -1,6 +1,7 @@
 /*
  * "Insider" sub-class pattern
  * (Shared #insider state across base + trusted sub-classes)
+ * **Identical to partner-class pattern except base instance is `this`**
  *
  * Last modified: 2026-02-13
  * Author: Brian Katzung <briank@kappacs.com>

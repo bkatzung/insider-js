@@ -13,7 +13,21 @@ export const Base = (() => {
 	// context and Object.freeze(Object) before any untrusted code can run!
 	const cls = Object.freeze(class Base {
 		static #insiderBaton = null; // Per-class handoff baton
-		#insider = { /* insider: true /* Instance insider properties */ };
+		static protoInsider = {
+			sampleMethod () {
+				// When called as `this.#insider.method` (or `insider.method`):
+				// `this` is the insider state object
+				// `this.thys` is the original object (see constructor)
+				if (this !== this.thys.#insider) throw new Error('Unauthorized call');
+				// ...
+			}
+		};
+		#insider; /* Instance insider properties */
+
+		constructor () {
+			const insider = this.#insider = Object.create(this.constructor.protoInsider);
+			insider.thys = this; // Enables insider methods without per-instance binding
+		}
 
 		/*
 		 * Base-class-only class-method to pass #insider access
@@ -31,6 +45,10 @@ export const Base = (() => {
 			reqCls._passInsider(instance.#insider, receiver);
 		}
 
+		callSampleMethod () {
+			this.#insider.sampleMethod();
+		}
+
 		// OPTIONAL: Get another instance's #insider
 		// (base-class version)
 		#getInsiderFor (other) {
@@ -39,5 +57,6 @@ export const Base = (() => {
 		}
 	});
 	Object.freeze(cls.prototype);
+	Object.freeze(cls.protoInsider);
 	return cls;
 })();
