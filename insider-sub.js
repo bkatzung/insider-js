@@ -30,10 +30,10 @@
 			// Request this instance's #insider using our class-level static handoff method
 			// and a receiver that loads the instance #insider from the static baton
 			Base._getInsider(cls, this, () => this.#insider = cls.#insiderBaton);
-			const insider = this.#insider;
+			const insider = this.#insider, protoInsider = cls.#protoInsider;
 			// Fix #insider prototypes
-			if (!getProto(cls.#protoInsider)) Object.freeze(setProto(cls.#protoInsider, getProto(insider)));
-			setProto(insider, cls.#protoInsider);
+			if (!getProto(protoInsider)) Object.freeze(setProto(protoInsider, getProto(insider)));
+			setProto(insider, protoInsider);
 			// console.log('Sub insider', insider);
 		}
 
