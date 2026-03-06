@@ -61,7 +61,21 @@ import { isTrusted } from './insider-trusted.js';
 export const Base = (() => {
 	const cls = Object.freeze(class Base {
 		static #insiderBaton = null; // Per-class handoff baton
-		#insider = { /* Instance insider properties */ };
+		static #protoInsider = Object.freeze({
+			insiderMethod() {
+				// When called as `this.#insider.method` (or `insider.method`):
+				// `this` is the insider state object
+				// `this.thys` is the original object (see constructor)
+				if (this !== this.thys.#insider) throw new Error('Unauthorized call');
+				// ...
+			}
+		});
+		#insider; /* Instance insider properties */
+
+		constructor() {
+			const insider = this.#insider = Object.create(cls.#protoInsider);
+			insider.thys = this; // Enables insider methods without per-instance binding
+		}
 
 		/*
 		 * Base-class-only class-method to pass #insider access
@@ -84,6 +98,11 @@ export const Base = (() => {
 })();
 ```
 
+**Key features:**
+- **Prototype-based insider methods**: The `#protoInsider` object contains shared methods accessible to all insider base (and sub-class) instances
+- **`thys` reference**: Each insider has a `thys` property pointing back to the original instance, enabling method calls without per-instance binding
+- **Security validation**: Insider methods verify they're called on the correct insider object to prevent unauthorized access
+
 ### Sub-Class Pattern
 
 Incorporate the sub-class pattern into your trusted sub-classes. Excerpted from [`insider-sub.js`](insider-sub.js):
@@ -92,9 +111,20 @@ Incorporate the sub-class pattern into your trusted sub-classes. Excerpted from 
 // Sub-class insider-pattern essentials
 import { Base } from './insider-trusted.js';
 
+const getProto = Object.getPrototypeOf, setProto = Object.setPrototypeOf;
+
 export const Sub = (() => {
 	const cls = Object.freeze(class Sub extends Base {
 		static #insiderBaton = null; // Handoff baton
+		static #protoInsider = setProto({
+			insiderMethod() {
+				// When called as `this.#insider.method` (or `insider.method`):
+				// `this` is the insider state object
+				// `this.thys` is the original object (see constructor)
+				if (this !== this.thys.#insider) throw new Error('Unauthorized call');
+				// super.insiderMethod();
+			}
+		}, null);
 		#insider; // Per-class-level private view of shared #insider state
 
 		constructor () {
@@ -102,11 +132,15 @@ export const Sub = (() => {
 			// Request this instance's #insider using our class-level static handoff method
 			// and a receiver that loads the instance #insider from the static baton
 			Base._getInsider(cls, this, () => this.#insider = cls.#insiderBaton);
+			const insider = this.#insider;
+			// Fix #insider prototypes
+			if (!getProto(cls.#protoInsider)) Object.freeze(setProto(cls.#protoInsider, getProto(insider)));
+			setProto(insider, cls.#protoInsider);
 		}
 
 		/*
 		 * Baton handoff function (all sub-classes); called by Base._getInsider
-		 * @param {Object} insider - The requested instances #insider
+		 * @param {Object} insider - The requested instance's #insider
 		 * @param {Function} receiver - The receiver function to call
 		 */
 		static _passInsider (insider, receiver) {
@@ -115,14 +149,19 @@ export const Sub = (() => {
 			 * for the handoff and then remove it.
 			 */
 			cls.#insiderBaton = insider;
-			receiver(); // Receiver must be a cls method to accept the baton
-			cls.#insiderBaton = null;
+			try { receiver(); } // Receiver must be a cls method to accept the baton
+			finally { cls.#insiderBaton = null; }
 		}
 	});
 	Object.freeze(cls.prototype);
 	return cls;
 })();
 ```
+
+**Key features:**
+- **Prototype chain management**: Sub-classes can define their own insider methods that extend Base's insider methods
+- **`try/finally` safety**: Ensures the baton is always cleared, even if the receiver throws an error
+- **Method inheritance**: Sub-class insider methods can call `super.insiderMethod()` to invoke ancestor insider methods
 
 ### Partner-Class Pattern (Non-Inheritance Variant)
 
@@ -135,6 +174,7 @@ import { Base } from './insider-trusted.js';
 export const Partner = (() => {
 	const cls = Object.freeze(class Partner { // Unrelated to Base
 		static #insiderBaton;
+		#insider;
 
 		constructor (baseInstance) {
 			// Accept base instance parameter instead of using `this`
@@ -144,15 +184,29 @@ export const Partner = (() => {
 
 		// Standard handoff-pattern class-method
 		static _passInsider (insider, receiver) {
-			this.#insiderBaton = insider;
-			receiver();
-			this.#insiderBaton = null;
+			cls.#insiderBaton = insider;
+			try { receiver(); }
+			finally { cls.#insiderBaton = null; }
+		}
+
+		/**
+		 * Pseudo-insider method (public, but caller must confirm it knows #insider)
+		 * partnerInstance.gatedMethod(this.#insider)
+		 * @param {*} insider - The insider-properties object
+		 */
+		gatedMethod (insider) {
+			if (insider !== this.#insider) throw new Error('Unauthorized');
+			// Method implementation with insider access
 		}
 	});
 	Object.freeze(cls.prototype);
 	return cls;
 })();
 ```
+
+**Additional pattern - Gated Methods:**
+
+Partner classes can expose "gated" public methods that require the caller to prove they have insider access by passing the insider object as a parameter. This allows trusted classes to call methods on partner instances while preventing untrusted code from doing so.
 
 **Key differences from the Sub-Class pattern:**
 
@@ -193,17 +247,51 @@ class Sub extends Base {
 }
 ```
 
+## Insider Methods
+
+The pattern supports defining methods on the insider object itself, which provides a secure way to encapsulate insider-only operations:
+
+```javascript
+static #protoInsider = Object.freeze({
+	insiderMethod() {
+		// `this` is the insider state object
+		// `this.thys` is the original instance
+		if (this !== this.thys.#insider) throw new Error('Unauthorized call');
+		
+		// Access insider properties
+		this.someInsiderProperty = 'value';
+		
+		// Access the original instance
+		this.thys.publicMethod();
+	}
+});
+```
+
+**Key benefits:**
+- **No per-instance binding**: Methods are shared via the prototype chain, not duplicated per instance
+- **Security validation**: Methods verify they're called on the correct insider object
+- **`thys` reference**: Provides access back to the original instance without binding overhead
+- **Inheritance support**: Sub-classes can extend insider methods using the prototype chain
+
+**Usage:**
+```javascript
+// In a trusted class method
+this.#insider.insiderMethod(); // Calls the method with proper context
+```
+
 ## How The Pattern Works
 
-The pattern uses four key mechanisms:
+The pattern uses five key mechanisms:
 
 1. **Private Fields (`#insider`)**: Each trusted class in the hierarchy has its own private `#insider` field that references the same shared insider properties object.
 
 2. **Trust Verification**: The `isTrusted()` function checks whether a class is allowed to access insider state, with flexible implementation options (Array, Set, switch statements, etc.).
 
-3. **Baton Handoff**: A secure handoff mechanism uses a temporary static baton to pass the `#insider` reference from the base class to trusted subclasses.
+3. **Baton Handoff**: A secure handoff mechanism uses a temporary static baton to pass the `#insider` reference from the base class to trusted sub-classes and partner classes. The baton is cleared in a `try/finally` block to ensure cleanup even if errors occur.
 
 4. **Security Verification**: The base class verifies that requesting classes pass the trust check and that their handoff methods are properly frozen before granting access.
+
+5. **Prototype-Based Methods**: Insider objects inherit from a frozen prototype containing shared methods, enabling efficient method sharing without per-instance duplication. The `thys` reference provides access back to the original instance, efficiently eliminating the need for per-instance binding.
 
 ## Property Access Levels
 

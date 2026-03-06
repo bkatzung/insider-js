@@ -210,3 +210,118 @@ Deno.test('Base class - multiple instances should each have their own insider', 
 	insider1.modified = true;
 	assertEquals(insider2.modified, undefined);
 });
+
+Deno.test('Base class - insider should have thys reference to original instance', () => {
+	// Create a test base with thys reference
+	const TestBaseWithThys = (() => {
+		const cls = Object.freeze(class TestBaseWithThys {
+			static #insiderBaton = null;
+			static #protoInsider = Object.freeze({
+				testMethod() {
+					return this.thys;
+				}
+			});
+			#insider;
+
+			constructor() {
+				const insider = this.#insider = Object.create(cls.#protoInsider);
+				insider.thys = this;
+			}
+
+			static _getInsider(reqCls, instance, receiver) {
+				reqCls._passInsider(instance.#insider, receiver);
+			}
+
+			getInsider() {
+				return this.#insider;
+			}
+		});
+		Object.freeze(cls.prototype);
+		return cls;
+	})();
+
+	const instance = new TestBaseWithThys();
+	const insider = instance.getInsider();
+	
+	// thys should reference the original instance
+	assertEquals(insider.thys, instance);
+	
+	// Insider method should be able to access the instance via thys
+	assertEquals(insider.testMethod(), instance);
+});
+
+Deno.test('Base class - insider methods should validate caller', () => {
+	// Create a test base with security validation
+	const TestBaseWithValidation = (() => {
+		const cls = Object.freeze(class TestBaseWithValidation {
+			static #insiderBaton = null;
+			static #protoInsider = Object.freeze({
+				secureMethod() {
+					if (this !== this.thys.#insider) throw new Error('Unauthorized call');
+					return 'authorized';
+				}
+			});
+			#insider;
+
+			constructor() {
+				const insider = this.#insider = Object.create(cls.#protoInsider);
+				insider.thys = this;
+			}
+
+			callSecureMethod() {
+				return this.#insider.secureMethod();
+			}
+
+			getInsider() {
+				return this.#insider;
+			}
+		});
+		Object.freeze(cls.prototype);
+		return cls;
+	})();
+
+	const instance = new TestBaseWithValidation();
+	
+	// Calling through the instance should work
+	assertEquals(instance.callSecureMethod(), 'authorized');
+	
+	// Direct call on insider should also work
+	const insider = instance.getInsider();
+	assertEquals(insider.secureMethod(), 'authorized');
+});
+
+Deno.test('Base class - insider methods should be shared via prototype', () => {
+	// Create a test base with prototype methods
+	const TestBaseWithProto = (() => {
+		const cls = Object.freeze(class TestBaseWithProto {
+			static #protoInsider = Object.freeze({
+				sharedMethod() {
+					return 'shared';
+				}
+			});
+			#insider;
+
+			constructor() {
+				this.#insider = Object.create(cls.#protoInsider);
+			}
+
+			getInsider() {
+				return this.#insider;
+			}
+		});
+		Object.freeze(cls.prototype);
+		return cls;
+	})();
+
+	const instance1 = new TestBaseWithProto();
+	const instance2 = new TestBaseWithProto();
+	
+	const insider1 = instance1.getInsider();
+	const insider2 = instance2.getInsider();
+	
+	// Methods should be the same function (shared via prototype)
+	assertEquals(insider1.sharedMethod, insider2.sharedMethod);
+	
+	// But insiders should be different objects
+	assertEquals(insider1 !== insider2, true);
+});

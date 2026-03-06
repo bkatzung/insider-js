@@ -48,6 +48,15 @@ export const Partner = (() => {
 				return insider;
 			}
 		}
+
+		/**
+		 * Pseudo-insider method (public, but caller must confirm it knows #insider)
+		 * partnerInstance.gatedMethod(this.#insider)
+		 * @param {*} insider - The insider-properties object
+		 */
+		gatedMethod (insider) {
+			if (insider !== this.#insider) throw new Error('Unauthorized');
+		}
 	});
 	Object.freeze(cls.prototype);
 	return cls;

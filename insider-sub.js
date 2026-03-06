@@ -9,9 +9,20 @@
 
  import { Base } from './insider-trusted.js';
 
+ const getProto = Object.getPrototypeOf, setProto = Object.setPrototypeOf;
+
  export const Sub = (() => {
 	const cls = Object.freeze(class Sub extends Base {
 		static #insiderBaton = null; // Handoff baton
+		static #protoInsider = setProto({
+			insiderMethod () {
+				// When called as `this.#insider.method` (or `insider.method`):
+				// `this` is the insider state object
+				// `this.thys` is the original object (see constructor)
+				if (this !== this.thys.#insider) throw new Error('Unauthorized call');
+				// super.insiderMethod();
+			}
+		}, null);
 		#insider; // Per-class-level private view of shared #insider state
 
 		constructor () {
@@ -19,7 +30,11 @@
 			// Request this instance's #insider using our class-level static handoff method
 			// and a receiver that loads the instance #insider from the static baton
 			Base._getInsider(cls, this, () => this.#insider = cls.#insiderBaton);
-			// console.log('Sub insider', this.#insider);
+			const insider = this.#insider;
+			// Fix #insider prototypes
+			if (!getProto(cls.#protoInsider)) Object.freeze(setProto(cls.#protoInsider, getProto(insider)));
+			setProto(insider, cls.#protoInsider);
+			// console.log('Sub insider', insider);
 		}
 
 		/*

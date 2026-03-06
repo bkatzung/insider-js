@@ -454,3 +454,48 @@ Deno.test('Sub class - cross-instance access works across different trusted clas
 	assertEquals(insider.id, 'sub');
 	assertEquals(otherInsider.id, undefined);
 });
+
+Deno.test('Sub class - _passInsider should use try/finally for safety', () => {
+	let batonCleared = false;
+	
+	const TestSub = (() => {
+		const cls = Object.freeze(class TestSub extends TestBase {
+			static #insiderBaton = null;
+			#insider;
+
+			constructor(shouldThrow = false) {
+				super();
+				TestBase._getInsider(cls, this, () => {
+					this.#insider = cls.#insiderBaton;
+					if (shouldThrow) throw new Error('Test error');
+				});
+			}
+
+			static _passInsider(insider, receiver) {
+				cls.#insiderBaton = insider;
+				try {
+					receiver();
+				} finally {
+					cls.#insiderBaton = null;
+					batonCleared = true;
+				}
+			}
+		});
+		Object.freeze(cls.prototype);
+		return cls;
+	})();
+
+	// Normal case - baton should be cleared
+	batonCleared = false;
+	new TestSub(false);
+	assertEquals(batonCleared, true);
+
+	// Error case - baton should still be cleared
+	batonCleared = false;
+	try {
+		new TestSub(true);
+	} catch (e) {
+		// Expected error
+	}
+	assertEquals(batonCleared, true);
+});

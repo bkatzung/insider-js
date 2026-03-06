@@ -7,9 +7,14 @@
 import { assertEquals, assertExists, assertThrows } from 'https://deno.land/std@0.208.0/assert/mod.ts';
 import { Base, Partner } from '../insider-trusted.js';
 
-// Create instrumented TestBase for testing
+// Create instrumented TestBase for testing with reconfigurable trust list
+let testTrustedClasses = null;
+
 const TestBase = (() => {
-	const isTrusted = (cls) => [TestPartner].includes(cls);
+	const isTrusted = (cls) => {
+		const trusted = testTrustedClasses || [TestPartner];
+		return trusted.includes(cls);
+	};
 	const cls = Object.freeze(class TestBase {
 		static #insiderBaton = null;
 		#insider = { testProp: 'test-value', count: 42 };
@@ -428,4 +433,201 @@ Deno.test('Partner class - should work with Base that has complex insider state'
 	assertEquals(partnerInsider.array.length, 3);
 	assertEquals(typeof partnerInsider.func, 'function');
 	assertEquals(partnerInsider.func(), 'function');
+});
+
+Deno.test('Partner class - gatedMethod should validate insider parameter', () => {
+	// Create a partner with gated method
+	const TestPartnerWithGate = (() => {
+		const cls = Object.freeze(class TestPartnerWithGate {
+			static #insiderBaton;
+			#insider;
+
+			constructor(baseInstance) {
+				TestBase._getInsider(cls, baseInstance, () => this.#insider = cls.#insiderBaton);
+			}
+
+			static _passInsider(insider, receiver) {
+				cls.#insiderBaton = insider;
+				try { receiver(); }
+				finally { cls.#insiderBaton = null; }
+			}
+
+			gatedMethod(insider) {
+				if (insider !== this.#insider) throw new Error('Unauthorized');
+				return 'authorized';
+			}
+
+			getInsider() {
+				return this.#insider;
+			}
+		});
+		Object.freeze(cls.prototype);
+		return cls;
+	})();
+
+	// Trust the new partner class
+	testTrustedClasses = [TestPartner, TestPartnerWithGate];
+	
+	const testBase = new TestBase();
+	const testPartner = new TestPartnerWithGate(testBase);
+	const insider = testPartner.getInsider();
+	
+	// Calling with correct insider should work
+	assertEquals(testPartner.gatedMethod(insider), 'authorized');
+	
+	// Calling with wrong insider should throw
+	assertThrows(
+		() => testPartner.gatedMethod({}),
+		Error,
+		'Unauthorized'
+	);
+	
+	// Calling with null should throw
+	assertThrows(
+		() => testPartner.gatedMethod(null),
+		Error,
+		'Unauthorized'
+	);
+	
+	// Reset trust list
+	testTrustedClasses = null;
+});
+
+Deno.test('Partner class - gatedMethod allows trusted classes to call partner methods', () => {
+	// Create a partner with gated method
+	const TestPartnerWithGate = (() => {
+		const cls = Object.freeze(class TestPartnerWithGate {
+			static #insiderBaton;
+			#insider;
+
+			constructor(baseInstance) {
+				TestBase._getInsider(cls, baseInstance, () => this.#insider = cls.#insiderBaton);
+			}
+
+			static _passInsider(insider, receiver) {
+				cls.#insiderBaton = insider;
+				try { receiver(); }
+				finally { cls.#insiderBaton = null; }
+			}
+
+			gatedMethod(insider) {
+				if (insider !== this.#insider) throw new Error('Unauthorized');
+				return 'partner-result';
+			}
+
+			getInsider() {
+				return this.#insider;
+			}
+		});
+		Object.freeze(cls.prototype);
+		return cls;
+	})();
+
+	// Create a trusted class that can call the gated method
+	const TestTrustedCaller = (() => {
+		const cls = Object.freeze(class TestTrustedCaller {
+			static #insiderBaton;
+			#insider;
+
+			constructor(baseInstance) {
+				TestBase._getInsider(cls, baseInstance, () => this.#insider = cls.#insiderBaton);
+			}
+
+			static _passInsider(insider, receiver) {
+				cls.#insiderBaton = insider;
+				try { receiver(); }
+				finally { cls.#insiderBaton = null; }
+			}
+
+			callPartnerMethod(partner) {
+				// Can call gated method because we have the insider
+				return partner.gatedMethod(this.#insider);
+			}
+		});
+		Object.freeze(cls.prototype);
+		return cls;
+	})();
+
+	// Trust both classes
+	testTrustedClasses = [TestPartner, TestPartnerWithGate, TestTrustedCaller];
+	
+	const testBase = new TestBase();
+	const testPartner = new TestPartnerWithGate(testBase);
+	const testCaller = new TestTrustedCaller(testBase);
+	
+	// Trusted caller should be able to call the gated method
+	assertEquals(testCaller.callPartnerMethod(testPartner), 'partner-result');
+	
+	// Reset trust list
+	testTrustedClasses = null;
+});
+
+Deno.test('Partner class - gatedMethod prevents untrusted classes from calling', () => {
+	// Create a partner with gated method
+	const TestPartnerWithGate = (() => {
+		const cls = Object.freeze(class TestPartnerWithGate {
+			static #insiderBaton;
+			#insider;
+
+			constructor(baseInstance) {
+				TestBase._getInsider(cls, baseInstance, () => this.#insider = cls.#insiderBaton);
+			}
+
+			static _passInsider(insider, receiver) {
+				cls.#insiderBaton = insider;
+				try { receiver(); }
+				finally { cls.#insiderBaton = null; }
+			}
+
+			gatedMethod(insider) {
+				if (insider !== this.#insider) throw new Error('Unauthorized');
+				return 'authorized';
+			}
+		});
+		Object.freeze(cls.prototype);
+		return cls;
+	})();
+
+	// Trust the partner class
+	testTrustedClasses = [TestPartner, TestPartnerWithGate];
+	
+	const testBase = new TestBase();
+	const testPartner = new TestPartnerWithGate(testBase);
+	
+	// Untrusted code can't call the method without the insider
+	assertThrows(
+		() => testPartner.gatedMethod({}),
+		Error,
+		'Unauthorized'
+	);
+	
+	// Even if they try to guess or create a fake insider
+	const fakeInsider = { testProp: 'test-value', count: 42 };
+	assertThrows(
+		() => testPartner.gatedMethod(fakeInsider),
+		Error,
+		'Unauthorized'
+	);
+	
+	// Reset trust list
+	testTrustedClasses = null;
+});
+
+Deno.test('Partner class - actual Partner.gatedMethod should validate insider', () => {
+	const base = new Base();
+	const partner = new Partner(base);
+	
+	// We can't directly access the insider from outside, but we can test
+	// that calling with wrong parameters throws
+	assertThrows(
+		() => partner.gatedMethod({}),
+		Error,
+		'Unauthorized'
+	);
+	
+	assertThrows(
+		() => partner.gatedMethod(null),
+		Error,
+		'Unauthorized'
+	);
 });
