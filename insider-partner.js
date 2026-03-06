@@ -27,12 +27,9 @@ export const Partner = (() => {
 		 * @param {Function} receiver - The receiver function to call
 		 */
 		static _passInsider (insider, receiver) {
-			try {
-				cls.#insiderBaton = insider;
-				receiver();
-			} finally {
-				cls.#insiderBaton = null;
-			}
+			cls.#insiderBaton = insider;
+			try { receiver(); }
+			finally { cls.#insiderBaton = null; }
 		}
 
 		/**

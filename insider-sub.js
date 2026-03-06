@@ -33,12 +33,9 @@
 			 * Put the instance's #insider into the baton long enough
 			 * for the handoff and then remove it.
 			 */
-			try {
-				cls.#insiderBaton = insider;
-				receiver(); // Receiver must be a cls method to accept the baton
-			} finally {
-				cls.#insiderBaton = null;
-			}
+			cls.#insiderBaton = insider;
+			try { receiver(); } // Receiver must be a cls method to accept the baton
+			finally { cls.#insiderBaton = null; }
 		}
 
 		// OPTIONAL: Get another instance's #insider
