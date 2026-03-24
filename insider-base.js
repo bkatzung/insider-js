@@ -1,8 +1,8 @@
 /*
  * "Insider" base-class pattern
- * (Shared #insider state across base + trusted sub-classed)
+ * (Shared #$ (insider) state across base + trusted sub-classed)
  *
- * Last modified: 2026-02-13
+ * Last modified: 2026-03-24
  * Author: Brian Katzung <briank@kappacs.com>
  */
 
@@ -13,47 +13,49 @@ export const Base = (() => {
 	// context and Object.freeze(Object) before any untrusted code can run!
 	const cls = Object.freeze(class Base {
 		static #insiderBaton = null; // Per-class handoff baton
-		static #protoInsider = Object.freeze({
+		static #__insider = Object.freeze({
 			insiderMethod () {
-				// When called as `this.#insider.method` (or `insider.method`):
+				const [thys, $thys] = [this.__this, this];
+				// When called as `this.#$.method` (or `insider.method`):
 				// `this` is the insider state object
-				// `this.thys` is the original object (see constructor)
-				if (this !== this.thys.#insider) throw new Error('Unauthorized call');
+				// `this.__this` is the original object (see constructor)
+				if ($thys !== thys.#$) throw new Error('Unauthorized');
 				// ...
 			}
 		});
-		#insider; /* Instance insider properties */
+
+		#$; /* Instance insider properties */
 
 		constructor () {
-			const insider = this.#insider = Object.create(cls.#protoInsider);
-			insider.thys = this; // Enables insider methods without per-instance binding
+			const insider = this.#$ = Object.create(cls.#__insider);
+			insider.__this = this; // Enables insider methods without per-instance binding
 		}
 
 		/*
-		 * Base-class-only class-method to pass #insider access
+		 * Base-class-only class-method to pass #$ access
 		 * @param {Class} reqCls - The requesting method's class (for proper handoff)
-		 * @param {Object} instance - The instance whose #insider is requested
-		 * @param {Function} receiver - Baton-receiver/instance-#insider-setter function
+		 * @param {Object} instance - The instance whose #$ is requested
+		 * @param {Function} receiver - Baton-receiver/instance-#$-setter function
 		 */
-		static _getInsider (reqCls, instance, receiver) {
+		static _get$ (reqCls, instance, receiver) {
 			// Request must be for a class on the trusted list
 			if (!isTrusted(reqCls)) throw new Error('Untrusted request');
 			// Make sure the handoff class-method is a frozen function
-			const passProps = Object.getOwnPropertyDescriptor(reqCls, '_passInsider');
+			const passProps = Object.getOwnPropertyDescriptor(reqCls, '_pass$');
 			if (typeof passProps.value !== 'function' || passProps.writable !== false || passProps.configurable !== false) throw new Error('Unsafe handoff');
-			// Use the supplied class-level handoff method to pass #insider to the receiver
-			reqCls._passInsider(instance.#insider, receiver);
+			// Use the supplied class-level handoff method to pass #$ to the receiver
+			reqCls._pass$(instance.#$, receiver);
 		}
 
 		callSampleMethod () {
-			this.#insider.sampleMethod();
+			this.#$.sampleMethod();
 		}
 
-		// OPTIONAL: Get another instance's #insider
+		// OPTIONAL: Get another instance's #$
 		// (base-class version)
-		#getInsiderFor (other) {
-			// Use native JS cross-instance private #insider access
-			if (other instanceof cls) return other.#insider;
+		#get$For (other) {
+			// Use native JS cross-instance private #$ access
+			if (other instanceof cls) return other.#$;
 		}
 	});
 	Object.freeze(cls.prototype);

@@ -22,15 +22,15 @@ const TestBase = (() => {
 
 	const cls = Object.freeze(class TestBase {
 		static #insiderBaton = null;
-		#insider = { testProp: 'initialized' };
+		#$ = { testProp: 'initialized' };
 
-		static _getInsider(reqCls, instance, receiver) {
+		static _get$(reqCls, instance, receiver) {
 			if (!isTrusted(reqCls)) throw new Error('Untrusted request');
-			const passProps = Object.getOwnPropertyDescriptor(reqCls, '_passInsider');
+			const passProps = Object.getOwnPropertyDescriptor(reqCls, '_pass$');
 			if (typeof passProps.value !== 'function' || passProps.writable !== false || passProps.configurable !== false) {
 				throw new Error('Unsafe handoff');
 			}
-			reqCls._passInsider(instance.#insider, receiver);
+			reqCls._pass$(instance.#$, receiver);
 		}
 
 		// Instrumentation methods
@@ -54,21 +54,21 @@ const TestBase = (() => {
 const TestSub = (() => {
 	const cls = Object.freeze(class TestSub extends TestBase {
 		static #insiderBaton = null;
-		#insider;
+		#$;
 
 		constructor() {
 			super();
-			TestBase._getInsider(cls, this, () => this.#insider = cls.#insiderBaton);
+			TestBase._get$(cls, this, () => this.#$ = cls.#insiderBaton);
 		}
 
-		static _passInsider(insider, receiver) {
+		static _pass$(insider, receiver) {
 			cls.#insiderBaton = insider;
 			receiver();
 			cls.#insiderBaton = null;
 		}
 
 		getInsider() {
-			return this.#insider;
+			return this.#$;
 		}
 	});
 	Object.freeze(cls.prototype);
@@ -78,7 +78,7 @@ const TestSub = (() => {
 // Create an untrusted test class
 const UntrustedClass = (() => {
 	const cls = Object.freeze(class UntrustedClass {
-		static _passInsider() {}
+		static _pass$() {}
 	});
 	Object.freeze(cls.prototype);
 	return cls;
@@ -90,14 +90,14 @@ Deno.test('Base class - should create an instance successfully', () => {
 	assertEquals(instance instanceof TestBase, true);
 });
 
-Deno.test('Base class - should have _getInsider static method', () => {
-	assertEquals(typeof TestBase._getInsider, 'function');
+Deno.test('Base class - should have _get$ static method', () => {
+	assertEquals(typeof TestBase._get$, 'function');
 });
 
-Deno.test('Base class - should not expose #insider directly', () => {
+Deno.test('Base class - should not expose #$ directly', () => {
 	const instance = new TestBase();
 	assertEquals(instance.insider, undefined);
-	assertEquals(instance['#insider'], undefined);
+	assertEquals(instance['#$'], undefined);
 });
 
 Deno.test('Base class - should not expose #trusted directly', () => {
@@ -110,39 +110,39 @@ Deno.test('Base class - should not expose #insiderBaton directly', () => {
 	assertEquals(TestBase['#insiderBaton'], undefined);
 });
 
-Deno.test('Base class - _getInsider should throw on untrusted request', () => {
+Deno.test('Base class - _get$ should throw on untrusted request', () => {
 	const instance = new TestBase();
 	
 	assertThrows(
-		() => TestBase._getInsider(UntrustedClass, instance, () => {}),
+		() => TestBase._get$(UntrustedClass, instance, () => {}),
 		Error,
 		'Untrusted request'
 	);
 });
 
-Deno.test('Base class - _getInsider should throw if handoff method is not frozen', () => {
-	// Create a class with non-frozen _passInsider method
+Deno.test('Base class - _get$ should throw if handoff method is not frozen', () => {
+	// Create a class with non-frozen _pass$ method
 	class UnsafeClass {
-		static _passInsider() {}
+		static _pass$() {}
 	}
 	
 	trustedOverride = [UnsafeClass];
 	TestBase.resetTrusted();
 	const instance = new TestBase();
 	
-	// This should throw because _passInsider is writable
+	// This should throw because _pass$ is writable
 	assertThrows(
-		() => TestBase._getInsider(UnsafeClass, instance, () => {}),
+		() => TestBase._get$(UnsafeClass, instance, () => {}),
 		Error,
 		'Unsafe handoff'
 	);
 	TestBase.resetTrusted();
 });
 
-Deno.test('Base class - _getInsider should throw if handoff method is configurable', () => {
-	// Create a class with configurable _passInsider method
+Deno.test('Base class - _get$ should throw if handoff method is configurable', () => {
+	// Create a class with configurable _pass$ method
 	const cls = class ConfigurableClass {};
-	Object.defineProperty(cls, '_passInsider', {
+	Object.defineProperty(cls, '_pass$', {
 		value: function() {},
 		writable: false,
 		configurable: true // This should fail
@@ -153,17 +153,17 @@ Deno.test('Base class - _getInsider should throw if handoff method is configurab
 	const instance = new TestBase();
 	
 	assertThrows(
-		() => TestBase._getInsider(cls, instance, () => {}),
+		() => TestBase._get$(cls, instance, () => {}),
 		Error,
 		'Unsafe handoff'
 	);
 	TestBase.resetTrusted();
 });
 
-Deno.test('Base class - _getInsider should throw if handoff is not a function', () => {
-	// Create a class with non-function _passInsider
+Deno.test('Base class - _get$ should throw if handoff is not a function', () => {
+	// Create a class with non-function _pass$
 	const cls = Object.freeze(class NonFunctionClass {
-		static _passInsider = 'not a function';
+		static _pass$ = 'not a function';
 	});
 	
 	trustedOverride = [cls];
@@ -171,7 +171,7 @@ Deno.test('Base class - _getInsider should throw if handoff is not a function', 
 	const instance = new TestBase();
 	
 	assertThrows(
-		() => TestBase._getInsider(cls, instance, () => {}),
+		() => TestBase._get$(cls, instance, () => {}),
 		Error,
 		'Unsafe handoff'
 	);
@@ -216,24 +216,24 @@ Deno.test('Base class - insider should have thys reference to original instance'
 	const TestBaseWithThys = (() => {
 		const cls = Object.freeze(class TestBaseWithThys {
 			static #insiderBaton = null;
-			static #protoInsider = Object.freeze({
+			static #__insider = Object.freeze({
 				testMethod() {
-					return this.thys;
+					return this.__this;
 				}
 			});
-			#insider;
+			#$;
 
 			constructor() {
-				const insider = this.#insider = Object.create(cls.#protoInsider);
-				insider.thys = this;
+				const insider = this.#$ = Object.create(cls.#__insider);
+				insider.__this = this;
 			}
 
-			static _getInsider(reqCls, instance, receiver) {
-				reqCls._passInsider(instance.#insider, receiver);
+			static _get$(reqCls, instance, receiver) {
+				reqCls._pass$(instance.#$, receiver);
 			}
 
 			getInsider() {
-				return this.#insider;
+				return this.#$;
 			}
 		});
 		Object.freeze(cls.prototype);
@@ -244,7 +244,7 @@ Deno.test('Base class - insider should have thys reference to original instance'
 	const insider = instance.getInsider();
 	
 	// thys should reference the original instance
-	assertEquals(insider.thys, instance);
+	assertEquals(insider.__this, instance);
 	
 	// Insider method should be able to access the instance via thys
 	assertEquals(insider.testMethod(), instance);
@@ -255,25 +255,25 @@ Deno.test('Base class - insider methods should validate caller', () => {
 	const TestBaseWithValidation = (() => {
 		const cls = Object.freeze(class TestBaseWithValidation {
 			static #insiderBaton = null;
-			static #protoInsider = Object.freeze({
+			static #__insider = Object.freeze({
 				secureMethod() {
-					if (this !== this.thys.#insider) throw new Error('Unauthorized call');
+					if (this !== this.__this.#$) throw new Error('Unauthorized call');
 					return 'authorized';
 				}
 			});
-			#insider;
+			#$;
 
 			constructor() {
-				const insider = this.#insider = Object.create(cls.#protoInsider);
-				insider.thys = this;
+				const insider = this.#$ = Object.create(cls.#__insider);
+				insider.__this = this;
 			}
 
 			callSecureMethod() {
-				return this.#insider.secureMethod();
+				return this.#$.secureMethod();
 			}
 
 			getInsider() {
-				return this.#insider;
+				return this.#$;
 			}
 		});
 		Object.freeze(cls.prototype);
@@ -294,19 +294,19 @@ Deno.test('Base class - insider methods should be shared via prototype', () => {
 	// Create a test base with prototype methods
 	const TestBaseWithProto = (() => {
 		const cls = Object.freeze(class TestBaseWithProto {
-			static #protoInsider = Object.freeze({
+			static #__insider = Object.freeze({
 				sharedMethod() {
 					return 'shared';
 				}
 			});
-			#insider;
+			#$;
 
 			constructor() {
-				this.#insider = Object.create(cls.#protoInsider);
+				this.#$ = Object.create(cls.#__insider);
 			}
 
 			getInsider() {
-				return this.#insider;
+				return this.#$;
 			}
 		});
 		Object.freeze(cls.prototype);

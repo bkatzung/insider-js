@@ -1,6 +1,6 @@
 /**
  * Tests for Partner class insider pattern
- * Partner is a "partner-class" pattern that shares #insider state with Base
+ * Partner is a "partner-class" pattern that shares #$ state with Base
  * but is NOT a subclass of Base (unlike Sub)
  */
 
@@ -17,25 +17,25 @@ const TestBase = (() => {
 	};
 	const cls = Object.freeze(class TestBase {
 		static #insiderBaton = null;
-		#insider = { testProp: 'test-value', count: 42 };
+		#$ = { testProp: 'test-value', count: 42 };
 
 		constructor(customInsider) {
 			if (customInsider) { // For testing
-				this.#insider = customInsider;
+				this.#$ = customInsider;
 			}
 		}
 
-		static _getInsider(reqCls, instance, receiver) {
+		static _get$(reqCls, instance, receiver) {
 			if (!isTrusted(reqCls)) throw new Error('Untrusted request');
-			const passProps = Object.getOwnPropertyDescriptor(reqCls, '_passInsider');
+			const passProps = Object.getOwnPropertyDescriptor(reqCls, '_pass$');
 			if (typeof passProps.value !== 'function' || passProps.writable !== false || passProps.configurable !== false) {
 				throw new Error('Unsafe handoff');
 			}
-			reqCls._passInsider(instance.#insider, receiver);
+			reqCls._pass$(instance.#$, receiver);
 		}
 
 		getInsider() {
-			return this.#insider;
+			return this.#$;
 		}
 	});
 	Object.freeze(cls.prototype);
@@ -47,28 +47,28 @@ const TestPartner = (() => {
 	const cls = Object.freeze(class TestPartner {
 		static #insiderBaton;
 		#baseInstance;
-		#insider;
+		#$;
 
 		constructor(baseInstance) {
 			this.#baseInstance = baseInstance;
-			TestBase._getInsider(cls, baseInstance, () => this.#insider = cls.#insiderBaton);
+			TestBase._get$(cls, baseInstance, () => this.#$ = cls.#insiderBaton);
 		}
 
-		static _passInsider(insider, receiver) {
+		static _pass$(insider, receiver) {
 			this.#insiderBaton = insider;
 			receiver();
 			this.#insiderBaton = null;
 		}
 
 		getInsider() {
-			return this.#insider;
+			return this.#$;
 		}
 
 		#getInsiderFor(other) {
-			if (other instanceof cls) return other.#insider;
+			if (other instanceof cls) return other.#$;
 			if (other instanceof TestBase) {
 				let insider;
-				TestBase._getInsider(cls, other, () => insider = cls.#insiderBaton);
+				TestBase._get$(cls, other, () => insider = cls.#insiderBaton);
 				return insider;
 			}
 		}
@@ -100,22 +100,22 @@ Deno.test('Partner class - should be frozen', () => {
 	assertEquals(Object.isFrozen(Partner.prototype), true);
 });
 
-Deno.test('Partner class - should have _passInsider static method', () => {
-	assertEquals(typeof Partner._passInsider, 'function');
+Deno.test('Partner class - should have _pass$ static method', () => {
+	assertEquals(typeof Partner._pass$, 'function');
 });
 
-Deno.test('Partner class - _passInsider should be frozen', () => {
-	const passProps = Object.getOwnPropertyDescriptor(Partner, '_passInsider');
+Deno.test('Partner class - _pass$ should be frozen', () => {
+	const passProps = Object.getOwnPropertyDescriptor(Partner, '_pass$');
 	assertEquals(typeof passProps.value, 'function');
 	assertEquals(passProps.writable, false);
 	assertEquals(passProps.configurable, false);
 });
 
-Deno.test('Partner class - should not expose #insider directly', () => {
+Deno.test('Partner class - should not expose #$ directly', () => {
 	const base = new Base();
 	const partner = new Partner(base);
 	assertEquals(partner.insider, undefined);
-	assertEquals(partner['#insider'], undefined);
+	assertEquals(partner['#$'], undefined);
 });
 
 Deno.test('Partner class - should not expose #baseInstance directly', () => {
@@ -145,7 +145,7 @@ Deno.test('Partner class - should successfully receive insider from Base', () =>
 });
 
 Deno.test('Partner class - multiple Partner instances with same Base', () => {
-	// Multiple partners with same base should share the same #insider
+	// Multiple partners with same base should share the same #$
 	const testBase = new TestBase();
 	const testPartner1 = new TestPartner(testBase);
 	const testPartner2 = new TestPartner(testBase);
@@ -164,7 +164,7 @@ Deno.test('Partner class - multiple Partner instances with same Base', () => {
 });
 
 Deno.test('Partner class - multiple Partner instances with different Base instances', () => {
-	// Each partner should get the correct #insider from its respective base
+	// Each partner should get the correct #$ from its respective base
 	const testBase1 = new TestBase();
 	const testBase2 = new TestBase();
 	const testPartner1 = new TestPartner(testBase1);
@@ -223,13 +223,13 @@ Deno.test('Partner class - constructor should throw if null is provided', () => 
 	);
 });
 
-Deno.test('Partner class - _passInsider should handle insider handoff correctly', () => {
+Deno.test('Partner class - _pass$ should handle insider handoff correctly', () => {
 	// Create a test to verify the handoff mechanism works
 	let receivedInsider = null;
 	const testInsider = { test: 'value' };
 	
-	// Call _passInsider and capture the insider in the receiver
-	Partner._passInsider(testInsider, () => {
+	// Call _pass$ and capture the insider in the receiver
+	Partner._pass$(testInsider, () => {
 		// During this callback, the baton should be set
 		// We can't access it directly, but we can verify the callback runs
 		receivedInsider = 'callback-executed';
@@ -240,7 +240,7 @@ Deno.test('Partner class - _passInsider should handle insider handoff correctly'
 
 Deno.test('Partner class - should be trusted by Base', () => {
 	// This is verified by successful construction
-	// If Partner wasn't trusted, Base._getInsider would throw
+	// If Partner wasn't trusted, Base._get$ would throw
 	const base = new Base();
 	const partner = new Partner(base);
 	assertExists(partner);
@@ -292,13 +292,13 @@ Deno.test('Partner class - should not allow modification of prototype', () => {
 	});
 });
 
-Deno.test('Partner class - _passInsider should clear baton after receiver executes', () => {
+Deno.test('Partner class - _pass$ should clear baton after receiver executes', () => {
 	// This test verifies that the baton is properly cleared
 	// We can't access the baton directly, but we can verify behavior
 	const testInsider = { test: 'value' };
 	let callbackExecuted = false;
 	
-	Partner._passInsider(testInsider, () => {
+	Partner._pass$(testInsider, () => {
 		callbackExecuted = true;
 	});
 	
@@ -306,7 +306,7 @@ Deno.test('Partner class - _passInsider should clear baton after receiver execut
 	
 	// If we call it again, it should work (baton was cleared)
 	callbackExecuted = false;
-	Partner._passInsider(testInsider, () => {
+	Partner._pass$(testInsider, () => {
 		callbackExecuted = true;
 	});
 	
@@ -330,7 +330,7 @@ Deno.test('Partner class - should handle rapid instance creation', () => {
 });
 
 Deno.test('Partner class - should maintain separate state per instance', () => {
-	// Even though we can't directly access #insider, we can verify
+	// Even though we can't directly access #$, we can verify
 	// that each Partner instance is independent
 	const base1 = new Base();
 	const base2 = new Base();
@@ -440,25 +440,25 @@ Deno.test('Partner class - gatedMethod should validate insider parameter', () =>
 	const TestPartnerWithGate = (() => {
 		const cls = Object.freeze(class TestPartnerWithGate {
 			static #insiderBaton;
-			#insider;
+			#$;
 
 			constructor(baseInstance) {
-				TestBase._getInsider(cls, baseInstance, () => this.#insider = cls.#insiderBaton);
+				TestBase._get$(cls, baseInstance, () => this.#$ = cls.#insiderBaton);
 			}
 
-			static _passInsider(insider, receiver) {
+			static _pass$(insider, receiver) {
 				cls.#insiderBaton = insider;
 				try { receiver(); }
 				finally { cls.#insiderBaton = null; }
 			}
 
 			gatedMethod(insider) {
-				if (insider !== this.#insider) throw new Error('Unauthorized');
+				if (insider !== this.#$) throw new Error('Unauthorized');
 				return 'authorized';
 			}
 
 			getInsider() {
-				return this.#insider;
+				return this.#$;
 			}
 		});
 		Object.freeze(cls.prototype);
@@ -498,25 +498,25 @@ Deno.test('Partner class - gatedMethod allows trusted classes to call partner me
 	const TestPartnerWithGate = (() => {
 		const cls = Object.freeze(class TestPartnerWithGate {
 			static #insiderBaton;
-			#insider;
+			#$;
 
 			constructor(baseInstance) {
-				TestBase._getInsider(cls, baseInstance, () => this.#insider = cls.#insiderBaton);
+				TestBase._get$(cls, baseInstance, () => this.#$ = cls.#insiderBaton);
 			}
 
-			static _passInsider(insider, receiver) {
+			static _pass$(insider, receiver) {
 				cls.#insiderBaton = insider;
 				try { receiver(); }
 				finally { cls.#insiderBaton = null; }
 			}
 
 			gatedMethod(insider) {
-				if (insider !== this.#insider) throw new Error('Unauthorized');
+				if (insider !== this.#$) throw new Error('Unauthorized');
 				return 'partner-result';
 			}
 
 			getInsider() {
-				return this.#insider;
+				return this.#$;
 			}
 		});
 		Object.freeze(cls.prototype);
@@ -527,13 +527,13 @@ Deno.test('Partner class - gatedMethod allows trusted classes to call partner me
 	const TestTrustedCaller = (() => {
 		const cls = Object.freeze(class TestTrustedCaller {
 			static #insiderBaton;
-			#insider;
+			#$;
 
 			constructor(baseInstance) {
-				TestBase._getInsider(cls, baseInstance, () => this.#insider = cls.#insiderBaton);
+				TestBase._get$(cls, baseInstance, () => this.#$ = cls.#insiderBaton);
 			}
 
-			static _passInsider(insider, receiver) {
+			static _pass$(insider, receiver) {
 				cls.#insiderBaton = insider;
 				try { receiver(); }
 				finally { cls.#insiderBaton = null; }
@@ -541,7 +541,7 @@ Deno.test('Partner class - gatedMethod allows trusted classes to call partner me
 
 			callPartnerMethod(partner) {
 				// Can call gated method because we have the insider
-				return partner.gatedMethod(this.#insider);
+				return partner.gatedMethod(this.#$);
 			}
 		});
 		Object.freeze(cls.prototype);
@@ -567,20 +567,20 @@ Deno.test('Partner class - gatedMethod prevents untrusted classes from calling',
 	const TestPartnerWithGate = (() => {
 		const cls = Object.freeze(class TestPartnerWithGate {
 			static #insiderBaton;
-			#insider;
+			#$;
 
 			constructor(baseInstance) {
-				TestBase._getInsider(cls, baseInstance, () => this.#insider = cls.#insiderBaton);
+				TestBase._get$(cls, baseInstance, () => this.#$ = cls.#insiderBaton);
 			}
 
-			static _passInsider(insider, receiver) {
+			static _pass$(insider, receiver) {
 				cls.#insiderBaton = insider;
 				try { receiver(); }
 				finally { cls.#insiderBaton = null; }
 			}
 
 			gatedMethod(insider) {
-				if (insider !== this.#insider) throw new Error('Unauthorized');
+				if (insider !== this.#$) throw new Error('Unauthorized');
 				return 'authorized';
 			}
 		});

@@ -22,22 +22,22 @@ Deno.test('Integration - multi-level inheritance with insider access', () => {
 	const SubSub = (() => {
 		const cls = Object.freeze(class SubSub extends Sub {
 			static #insiderBaton = null;
-			#insider;
+			#$;
 
 			constructor() {
 				super();
-				Base._getInsider(cls, this, () => this.#insider = cls.#insiderBaton);
-				this.#insider.level = 'subsub';
+				Base._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+				this.#$.level = 'subsub';
 			}
 
-			static _passInsider(insider, receiver) {
+			static _pass$(insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
 			}
 
 			getInsider() {
-				return this.#insider;
+				return this.#$;
 			}
 		});
 		Object.freeze(cls.prototype);
@@ -57,22 +57,22 @@ Deno.test('Integration - insider state is per-instance', () => {
 	const TestSub = (() => {
 		const cls = Object.freeze(class TestSub extends Base {
 			static #insiderBaton = null;
-			#insider;
+			#$;
 
 			constructor(id) {
 				super();
-				Base._getInsider(cls, this, () => this.#insider = cls.#insiderBaton);
-				this.#insider.id = id;
+				Base._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+				this.#$.id = id;
 			}
 
-			static _passInsider(insider, receiver) {
+			static _pass$(insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
 			}
 
 			getInsider() {
-				return this.#insider;
+				return this.#$;
 			}
 		});
 		Object.freeze(cls.prototype);
@@ -107,16 +107,16 @@ Deno.test('Integration - frozen classes prevent tampering', () => {
 	});
 });
 
-Deno.test('Integration - _passInsider is frozen on Sub', () => {
-	const passProps = Object.getOwnPropertyDescriptor(Sub, '_passInsider');
+Deno.test('Integration - _pass$ is frozen on Sub', () => {
+	const passProps = Object.getOwnPropertyDescriptor(Sub, '_pass$');
 	
 	assertEquals(typeof passProps.value, 'function');
 	assertEquals(passProps.writable, false);
 	assertEquals(passProps.configurable, false);
 	
-	// Try to replace _passInsider
+	// Try to replace _pass$
 	assertThrows(() => {
-		Sub._passInsider = function() {};
+		Sub._pass$ = function() {};
 	});
 });
 
@@ -162,15 +162,15 @@ Deno.test('Integration - trust mechanism prevents unauthorized access', () => {
 	const Untrusted = (() => {
 		const cls = Object.freeze(class Untrusted extends Base {
 			static #insiderBaton = null;
-			#insider;
+			#$;
 
 			constructor() {
 				super();
 				// This should throw
-				Base._getInsider(cls, this, () => this.#insider = cls.#insiderBaton);
+				Base._get$(cls, this, () => this.#$ = cls.#insiderBaton);
 			}
 
-			static _passInsider(insider, receiver) {
+			static _pass$(insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -219,16 +219,16 @@ Deno.test('Integration - insider is truly private', () => {
 	
 	// Insider should not be accessible from outside
 	assertEquals(sub.insider, undefined);
-	assertEquals(sub['#insider'], undefined);
+	assertEquals(sub['#$'], undefined);
 	
 	// Even with Object.keys or Object.getOwnPropertyNames
 	const keys = Object.keys(sub);
 	const propNames = Object.getOwnPropertyNames(sub);
 	
-	assertEquals(keys.includes('insider'), false);
-	assertEquals(keys.includes('#insider'), false);
-	assertEquals(propNames.includes('insider'), false);
-	assertEquals(propNames.includes('#insider'), false);
+	assertEquals(keys.includes('$'), false);
+	assertEquals(keys.includes('#$'), false);
+	assertEquals(propNames.includes('$'), false);
+	assertEquals(propNames.includes('#$'), false);
 });
 
 Deno.test('Integration - pattern prevents prototype pollution', () => {
@@ -266,5 +266,5 @@ Deno.test('Integration - complete workflow from construction to use', () => {
 	
 	// 5. Verify insider is private
 	assertEquals(sub.insider, undefined);
-	assertEquals(sub['#insider'], undefined);
+	assertEquals(sub['#$'], undefined);
 });

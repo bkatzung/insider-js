@@ -9,15 +9,15 @@ import { Base, Sub } from '../insider-trusted.js';
 const TestBase = (() => {
 	const cls = Object.freeze(class TestBase {
 		static #insiderBaton = null;
-		#insider = { initialized: true };
+		#$ = { initialized: true };
 
 		constructor() {
 			// No trust checks - just for testing sub-class pattern
 		}
 
-		// Simplified _getInsider without trust checks
-		static _getInsider(reqCls, instance, receiver) {
-			reqCls._passInsider(instance.#insider, receiver);
+		// Simplified _get$ without trust checks
+		static _get$(reqCls, instance, receiver) {
+			reqCls._pass$(instance.#$, receiver);
 		}
 	});
 	Object.freeze(cls.prototype);
@@ -31,21 +31,21 @@ Deno.test('Sub class - should create an instance successfully', () => {
 	assertEquals(instance instanceof Base, true);
 });
 
-Deno.test('Sub class - should have _passInsider static method', () => {
-	assertEquals(typeof Sub._passInsider, 'function');
+Deno.test('Sub class - should have _pass$ static method', () => {
+	assertEquals(typeof Sub._pass$, 'function');
 });
 
-Deno.test('Sub class - _passInsider should be frozen', () => {
-	const passProps = Object.getOwnPropertyDescriptor(Sub, '_passInsider');
+Deno.test('Sub class - _pass$ should be frozen', () => {
+	const passProps = Object.getOwnPropertyDescriptor(Sub, '_pass$');
 	assertEquals(typeof passProps.value, 'function');
 	assertEquals(passProps.writable, false);
 	assertEquals(passProps.configurable, false);
 });
 
-Deno.test('Sub class - should not expose #insider directly', () => {
+Deno.test('Sub class - should not expose #$ directly', () => {
 	const instance = new Sub();
 	assertEquals(instance.insider, undefined);
-	assertEquals(instance['#insider'], undefined);
+	assertEquals(instance['#$'], undefined);
 });
 
 Deno.test('Sub class - should not expose #insiderBaton directly', () => {
@@ -62,21 +62,21 @@ Deno.test('Sub class - should receive insider from Base', () => {
 	const TestSub = (() => {
 		const cls = Object.freeze(class TestSub extends TestBase {
 			static #insiderBaton = null;
-			#insider;
+			#$;
 
 			constructor() {
 				super();
-				TestBase._getInsider(cls, this, () => this.#insider = cls.#insiderBaton);
+				TestBase._get$(cls, this, () => this.#$ = cls.#insiderBaton);
 			}
 
-			static _passInsider(insider, receiver) {
+			static _pass$(insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
 			}
 
 			getInsider() {
-				return this.#insider;
+				return this.#$;
 			}
 		});
 		Object.freeze(cls.prototype);
@@ -97,17 +97,17 @@ Deno.test('Sub class - baton should be cleared after handoff', () => {
 	const TestSub = (() => {
 		const cls = Object.freeze(class TestSub extends TestBase {
 			static #insiderBaton = null;
-			#insider;
+			#$;
 
 			constructor() {
 				super();
-				TestBase._getInsider(cls, this, () => {
-					this.#insider = cls.#insiderBaton;
+				TestBase._get$(cls, this, () => {
+					this.#$ = cls.#insiderBaton;
 					batonValue = cls.#insiderBaton;
 				});
 			}
 
-			static _passInsider(insider, receiver) {
+			static _pass$(insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -135,29 +135,29 @@ Deno.test('Sub class - multiple instances should each receive their own insider'
 	const TestSub = (() => {
 		const cls = Object.freeze(class TestSub extends TestBase {
 			static #insiderBaton = null;
-			#insider;
+			#$;
 
 			constructor() {
 				super();
-				TestBase._getInsider(cls, this, () => this.#insider = cls.#insiderBaton);
+				TestBase._get$(cls, this, () => this.#$ = cls.#insiderBaton);
 			}
 
-			static _passInsider(insider, receiver) {
+			static _pass$(insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
 			}
 
 			getInsider() {
-				return this.#insider;
+				return this.#$;
 			}
 
 			setInsiderProp(key, value) {
-				this.#insider[key] = value;
+				this.#$[key] = value;
 			}
 
 			getInsiderProp(key) {
-				return this.#insider[key];
+				return this.#$[key];
 			}
 		});
 		Object.freeze(cls.prototype);
@@ -185,25 +185,25 @@ Deno.test('Sub class - insider should persist across method calls', () => {
 	const TestSub = (() => {
 		const cls = Object.freeze(class TestSub extends TestBase {
 			static #insiderBaton = null;
-			#insider;
+			#$;
 
 			constructor() {
 				super();
-				TestBase._getInsider(cls, this, () => this.#insider = cls.#insiderBaton);
+				TestBase._get$(cls, this, () => this.#$ = cls.#insiderBaton);
 			}
 
-			static _passInsider(insider, receiver) {
+			static _pass$(insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
 			}
 
 			setInsiderProp(key, value) {
-				this.#insider[key] = value;
+				this.#$[key] = value;
 			}
 
 			getInsiderProp(key) {
-				return this.#insider[key];
+				return this.#$[key];
 			}
 		});
 		Object.freeze(cls.prototype);
@@ -223,27 +223,27 @@ Deno.test('Sub class - should use ||= to prevent insider reassignment', () => {
 	const TestSub = (() => {
 		const cls = Object.freeze(class TestSub extends TestBase {
 			static #insiderBaton = null;
-			#insider;
+			#$;
 
 			constructor() {
 				super();
-				TestBase._getInsider(cls, this, () => this.#insider ||= cls.#insiderBaton);
-				this.#insider.original = true;
+				TestBase._get$(cls, this, () => this.#$ ||= cls.#insiderBaton);
+				this.#$.original = true;
 			}
 
-			static _passInsider(insider, receiver) {
+			static _pass$(insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
 			}
 
 			getInsider() {
-				return this.#insider;
+				return this.#$;
 			}
 
 			tryReassign() {
 				const newInsider = { fake: true };
-				this.#insider ||= newInsider;
+				this.#$ ||= newInsider;
 			}
 		});
 		Object.freeze(cls.prototype);
@@ -269,22 +269,22 @@ Deno.test('Sub class - multi-level inheritance should work', () => {
 	const TestSub = (() => {
 		const cls = Object.freeze(class TestSub extends TestBase {
 			static #insiderBaton = null;
-			#insider;
+			#$;
 
 			constructor() {
 				super();
-				TestBase._getInsider(cls, this, () => this.#insider = cls.#insiderBaton);
-				this.#insider.level = 'sub';
+				TestBase._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+				this.#$.level = 'sub';
 			}
 
-			static _passInsider(insider, receiver) {
+			static _pass$(insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
 			}
 
 			getInsider() {
-				return this.#insider;
+				return this.#$;
 			}
 		});
 		Object.freeze(cls.prototype);
@@ -294,22 +294,22 @@ Deno.test('Sub class - multi-level inheritance should work', () => {
 	const TestSubSub = (() => {
 		const cls = Object.freeze(class TestSubSub extends TestSub {
 			static #insiderBaton = null;
-			#insider;
+			#$;
 
 			constructor() {
 				super();
-				TestBase._getInsider(cls, this, () => this.#insider = cls.#insiderBaton);
-				this.#insider.sublevel = 'subsub';
+				TestBase._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+				this.#$.sublevel = 'subsub';
 			}
 
-			static _passInsider(insider, receiver) {
+			static _pass$(insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
 			}
 
 			getSubSubInsider() {
-				return this.#insider;
+				return this.#$;
 			}
 		});
 		Object.freeze(cls.prototype);
@@ -326,25 +326,25 @@ Deno.test('Sub class - multi-level inheritance should work', () => {
 	assertEquals(subInsider.sublevel, 'subsub');
 });
 
-Deno.test('Sub class - _passInsider should properly handle receiver function', () => {
+Deno.test('Sub class - _pass$ should properly handle receiver function', () => {
 	let receiverCalled = false;
 	let receivedInsider = null;
 	
 	const TestSub = (() => {
 		const cls = Object.freeze(class TestSub extends TestBase {
 			static #insiderBaton = null;
-			#insider;
+			#$;
 
 			constructor() {
 				super();
-				TestBase._getInsider(cls, this, () => {
+				TestBase._get$(cls, this, () => {
 					receiverCalled = true;
 					receivedInsider = cls.#insiderBaton;
-					this.#insider = cls.#insiderBaton;
+					this.#$ = cls.#insiderBaton;
 				});
 			}
 
-			static _passInsider(insider, receiver) {
+			static _pass$(insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -361,20 +361,20 @@ Deno.test('Sub class - _passInsider should properly handle receiver function', (
 	assertEquals(typeof receivedInsider, 'object');
 });
 
-Deno.test('Sub class - should get null #insider for mismatched class (Sub2 _getInsider passing Sub1)', () => {
+Deno.test('Sub class - should get null #$ for mismatched class (Sub2 _get$ passing Sub1)', () => {
 	// Create two different trusted sub-classes
 	const TestSub1 = (() => {
 		const cls = Object.freeze(class TestSub1 extends TestBase {
 			static #insiderBaton = null;
-			#insider;
+			#$;
 
 			constructor() {
 				super();
-				TestBase._getInsider(cls, this, () => this.#insider = cls.#insiderBaton);
-				this.#insider.class = 'Sub1';
+				TestBase._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+				this.#$.class = 'Sub1';
 			}
 
-			static _passInsider(insider, receiver) {
+			static _pass$(insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -389,15 +389,15 @@ Deno.test('Sub class - should get null #insider for mismatched class (Sub2 _getI
 	const TestSub2 = (() => {
 		const cls = Object.freeze(class TestSub2 extends TestBase {
 			static #insiderBaton = null;
-			#insider;
+			#$;
 
 			constructor() {
 				super();
-				TestBase._getInsider(TestSub1 /*[sic]*/, this, () => this.#insider = cls.#insiderBaton);
-				receivedInsider = this.#insider;
+				TestBase._get$(TestSub1 /*[sic]*/, this, () => this.#$ = cls.#insiderBaton);
+				receivedInsider = this.#$;
 			}
 
-			static _passInsider(insider, receiver) {
+			static _pass$(insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -416,15 +416,15 @@ Deno.test('Sub class - cross-instance access works across different trusted clas
 	const TestSub = (() => {
 		const cls = Object.freeze(class TestSub extends TestBase {
 			static #insiderBaton = null;
-			#insider;
+			#$;
 
 			constructor(id) {
 				super();
-				TestBase._getInsider(cls, this, () => this.#insider = cls.#insiderBaton);
-				this.#insider.id = id;
+				TestBase._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+				this.#$.id = id;
 			}
 
-			static _passInsider(insider, receiver) {
+			static _pass$(insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -433,10 +433,10 @@ Deno.test('Sub class - cross-instance access works across different trusted clas
 			// Access another instance's insider (different class)
 			compareTo(other) {
 				let otherInsider;
-				// #insider is always passed by common Base,
+				// #$ is always passed by common Base,
 				// but request must come from trusted class
-				TestBase._getInsider(cls, other, () => otherInsider = cls.#insiderBaton);
-				return { insider: this.#insider, otherInsider };
+				TestBase._get$(cls, other, () => otherInsider = cls.#insiderBaton);
+				return { insider: this.#$, otherInsider };
 			}
 		});
 		Object.freeze(cls.prototype);
@@ -455,23 +455,23 @@ Deno.test('Sub class - cross-instance access works across different trusted clas
 	assertEquals(otherInsider.id, undefined);
 });
 
-Deno.test('Sub class - _passInsider should use try/finally for safety', () => {
+Deno.test('Sub class - _pass$ should use try/finally for safety', () => {
 	let batonCleared = false;
 	
 	const TestSub = (() => {
 		const cls = Object.freeze(class TestSub extends TestBase {
 			static #insiderBaton = null;
-			#insider;
+			#$;
 
 			constructor(shouldThrow = false) {
 				super();
-				TestBase._getInsider(cls, this, () => {
-					this.#insider = cls.#insiderBaton;
+				TestBase._get$(cls, this, () => {
+					this.#$ = cls.#insiderBaton;
 					if (shouldThrow) throw new Error('Test error');
 				});
 			}
 
-			static _passInsider(insider, receiver) {
+			static _pass$(insider, receiver) {
 				cls.#insiderBaton = insider;
 				try {
 					receiver();

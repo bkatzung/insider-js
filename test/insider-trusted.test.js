@@ -52,15 +52,15 @@ Deno.test('Trust - Base should reject untrusted classes', () => {
 	const UntrustedSub = (() => {
 		const cls = Object.freeze(class UntrustedSub extends Base {
 			static #insiderBaton = null;
-			#insider;
+			#$;
 
 			constructor() {
 				super();
 				// This should throw because UntrustedSub is not in the trusted list
-				Base._getInsider(cls, this, () => this.#insider = cls.#insiderBaton);
+				Base._get$(cls, this, () => this.#$ = cls.#insiderBaton);
 			}
 
-			static _passInsider(insider, receiver) {
+			static _pass$(insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -77,16 +77,16 @@ Deno.test('Trust - Base should reject untrusted classes', () => {
 	);
 });
 
-Deno.test('Trust - Base._getInsider should be accessible', () => {
-	assertEquals(typeof Base._getInsider, 'function');
+Deno.test('Trust - Base._get$ should be accessible', () => {
+	assertEquals(typeof Base._get$, 'function');
 });
 
-Deno.test('Trust - Sub._passInsider should be accessible', () => {
-	assertEquals(typeof Sub._passInsider, 'function');
+Deno.test('Trust - Sub._pass$ should be accessible', () => {
+	assertEquals(typeof Sub._pass$, 'function');
 });
 
-Deno.test('Trust - Partner._passInsider should be accessible', () => {
-	assertEquals(typeof Partner._passInsider, 'function');
+Deno.test('Trust - Partner._pass$ should be accessible', () => {
+	assertEquals(typeof Partner._pass$, 'function');
 });
 
 Deno.test('Trust - multiple Sub instances should all be trusted', () => {

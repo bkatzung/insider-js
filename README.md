@@ -61,36 +61,36 @@ import { isTrusted } from './insider-trusted.js';
 export const Base = (() => {
 	const cls = Object.freeze(class Base {
 		static #insiderBaton = null; // Per-class handoff baton
-		static #protoInsider = Object.freeze({
+		static #__insider = Object.freeze({
 			insiderMethod() {
-				// When called as `this.#insider.method` (or `insider.method`):
-				// `this` is the insider state object
-				// `this.thys` is the original object (see constructor)
-				if (this !== this.thys.#insider) throw new Error('Unauthorized call');
+				const [thys, $thys] = [this.__this, this];
+				// `thys` is the original object
+				// `$thys` is the insider state object
+				if ($thys !== thys.#$) throw new Error('Unauthorized');
 				// ...
 			}
 		});
-		#insider; /* Instance insider properties */
+		#$; /* Instance insider properties */
 
 		constructor() {
-			const insider = this.#insider = Object.create(cls.#protoInsider);
-			insider.thys = this; // Enables insider methods without per-instance binding
+			const insider = this.#$ = Object.create(cls.#__insider);
+			insider.__this = this; // Enables insider methods without per-instance binding
 		}
 
 		/*
-		 * Base-class-only class-method to pass #insider access
+		 * Base-class-only class-method to pass #$ access
 		 * @param {Class} reqCls - The requesting method's class (for proper handoff)
-		 * @param {Object} instance - The instance whose #insider is requested
-		 * @param {Function} receiver - Baton-receiver/instance-#insider-setter function
+		 * @param {Object} instance - The instance whose #$ is requested
+		 * @param {Function} receiver - Baton-receiver/instance-#$-setter function
 		 */
-		static _getInsider (reqCls, instance, receiver) {
+		static _get$ (reqCls, instance, receiver) {
 			// Request must be for a class on the trusted list
 			if (!isTrusted(reqCls)) throw new Error('Untrusted request');
 			// Make sure the handoff class-method is a frozen function
-			const passProps = Object.getOwnPropertyDescriptor(reqCls, '_passInsider');
+			const passProps = Object.getOwnPropertyDescriptor(reqCls, '_pass$');
 			if (typeof passProps.value !== 'function' || passProps.writable !== false || passProps.configurable !== false) throw new Error('Unsafe handoff');
-			// Use the supplied class-level handoff method to pass #insider to the receiver
-			reqCls._passInsider(instance.#insider, receiver);
+			// Use the supplied class-level handoff method to pass #$ to the receiver
+			reqCls._pass$(instance.#$, receiver);
 		}
 	});
 	Object.freeze(cls.prototype);
@@ -99,8 +99,8 @@ export const Base = (() => {
 ```
 
 **Key features:**
-- **Prototype-based insider methods**: The `#protoInsider` object contains shared methods accessible to all insider base (and sub-class) instances
-- **`thys` reference**: Each insider has a `thys` property pointing back to the original instance, enabling method calls without per-instance binding
+- **Prototype-based insider methods**: The `#__insider` object contains shared methods accessible to all insider base (and sub-class) instances
+- **`__this` reference**: Each insider has a `__this` property pointing back to the original instance, enabling method calls without per-instance binding
 - **Security validation**: Insider methods verify they're called on the correct insider object to prevent unauthorized access
 
 ### Sub-Class Pattern
@@ -116,36 +116,36 @@ const getProto = Object.getPrototypeOf, setProto = Object.setPrototypeOf;
 export const Sub = (() => {
 	const cls = Object.freeze(class Sub extends Base {
 		static #insiderBaton = null; // Handoff baton
-		static #protoInsider = setProto({
+		static #__insider = setProto({
 			insiderMethod() {
-				// When called as `this.#insider.method` (or `insider.method`):
-				// `this` is the insider state object
-				// `this.thys` is the original object (see constructor)
-				if (this !== this.thys.#insider) throw new Error('Unauthorized call');
+				const [thys, $thys] = [this.__this, this];
+				// `thys` is the original object
+				// `$thys` is the insider state object
+				if ($thys !== thys.#$) throw new Error('Unauthorized');
 				// super.insiderMethod();
 			}
 		}, null);
-		#insider; // Per-class-level private view of shared #insider state
+		#$; // Per-class-level private view of shared #$ state
 
 		constructor () {
 			super();
-			// Request this instance's #insider using our class-level static handoff method
-			// and a receiver that loads the instance #insider from the static baton
-			Base._getInsider(cls, this, () => this.#insider = cls.#insiderBaton);
-			const insider = this.#insider;
-			// Fix #insider prototypes
-			if (!getProto(cls.#protoInsider)) Object.freeze(setProto(cls.#protoInsider, getProto(insider)));
-			setProto(insider, cls.#protoInsider);
+			// Request this instance's #$ using our class-level static handoff method
+			// and a receiver that loads the instance #$ from the static baton
+			Base._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+			const insider = this.#$;
+			// Fix #$ prototypes
+			if (!getProto(cls.#__insider)) Object.freeze(setProto(cls.#__insider, getProto(insider)));
+			setProto(insider, cls.#__insider);
 		}
 
 		/*
-		 * Baton handoff function (all sub-classes); called by Base._getInsider
-		 * @param {Object} insider - The requested instance's #insider
+		 * Baton handoff function (all sub-classes); called by Base._get$
+		 * @param {Object} insider - The requested instance's #$
 		 * @param {Function} receiver - The receiver function to call
 		 */
-		static _passInsider (insider, receiver) {
+		static _pass$ (insider, receiver) {
 			/*
-			 * Put the instance's #insider into the baton long enough
+			 * Put the instance's #$ into the baton long enough
 			 * for the handoff and then remove it.
 			 */
 			cls.#insiderBaton = insider;
@@ -174,28 +174,28 @@ import { Base } from './insider-trusted.js';
 export const Partner = (() => {
 	const cls = Object.freeze(class Partner { // Unrelated to Base
 		static #insiderBaton;
-		#insider;
+		#$;
 
 		constructor (baseInstance) {
 			// Accept base instance parameter instead of using `this`
-			Base._getInsider(cls, baseInstance, () => this.#insider = cls.#insiderBaton);
-			// Insider properties (this.#insider.prop) now available here
+			Base._get$(cls, baseInstance, () => this.#$ = cls.#insiderBaton);
+			// Insider properties (this.#$.prop) now available here
 		}
 
 		// Standard handoff-pattern class-method
-		static _passInsider (insider, receiver) {
+		static _pass$ (insider, receiver) {
 			cls.#insiderBaton = insider;
 			try { receiver(); }
 			finally { cls.#insiderBaton = null; }
 		}
 
 		/**
-		 * Pseudo-insider method (public, but caller must confirm it knows #insider)
-		 * partnerInstance.gatedMethod(this.#insider)
+		 * Pseudo-insider method (public, but caller must confirm it knows #$)
+		 * partnerInstance.gatedMethod(this.#$)
 		 * @param {*} insider - The insider-properties object
 		 */
 		gatedMethod (insider) {
-			if (insider !== this.#insider) throw new Error('Unauthorized');
+			if (insider !== this.#$) throw new Error('Unauthorized');
 			// Method implementation with insider access
 		}
 	});
@@ -231,16 +231,16 @@ Trusted classes can optionally access insider state from other instances as foll
 class Sub extends Base {
     // ...
 
-	// OPTIONAL: Get another instance's #insider
+	// OPTIONAL: Get another instance's #$
 	// (sub-class version)
-	#getInsiderFor (other) {
-		// Same class: use native JS cross-instance private #insider access
-		if (other instanceof cls) return other.#insider;
+	#get$For (other) {
+		// Same class: use native JS cross-instance private #$ access
+		if (other instanceof cls) return other.#$;
 		
-		// instanceof Base (cross-class cross-instance): use Base._getInsider
+		// instanceof Base (cross-class cross-instance): use Base._get$
 		if (other instanceof Base) {
 			let insider;
-			Base._getInsider(cls, other, () => insider = cls.#insiderBaton);
+			Base._get$(cls, other, () => insider = cls.#insiderBaton);
 			return insider;
 		}
 	}
@@ -252,17 +252,18 @@ class Sub extends Base {
 The pattern supports defining methods on the insider object itself, which provides a secure way to encapsulate insider-only operations:
 
 ```javascript
-static #protoInsider = Object.freeze({
+static #__insider = Object.freeze({
 	insiderMethod() {
-		// `this` is the insider state object
-		// `this.thys` is the original instance
-		if (this !== this.thys.#insider) throw new Error('Unauthorized call');
+		const [thys, $thys] = [this.__this, this];
+		// `thys` is the original object
+		// `$thys` is the insider state object
+		if ($thys !== thys.#$) throw new Error('Unauthorized');
 		
 		// Access insider properties
-		this.someInsiderProperty = 'value';
+		$thys.someInsiderProperty = 'value';
 		
 		// Access the original instance
-		this.thys.publicMethod();
+		thys.publicMethod();
 	}
 });
 ```
@@ -270,42 +271,42 @@ static #protoInsider = Object.freeze({
 **Key benefits:**
 - **No per-instance binding**: Methods are shared via the prototype chain, not duplicated per instance
 - **Security validation**: Methods verify they're called on the correct insider object
-- **`thys` reference**: Provides access back to the original instance without binding overhead
+- **`__this` reference**: Provides access back to the original instance without binding overhead
 - **Inheritance support**: Sub-classes can extend insider methods using the prototype chain
 
 **Usage:**
 ```javascript
 // In a trusted class method
-this.#insider.insiderMethod(); // Calls the method with proper context
+this.#$.insiderMethod(); // Calls the method with proper context
 ```
 
 ## How The Pattern Works
 
 The pattern uses five key mechanisms:
 
-1. **Private Fields (`#insider`)**: Each trusted class in the hierarchy has its own private `#insider` field that references the same shared insider properties object.
+1. **Private Fields (`#$`)**: Each trusted class in the hierarchy has its own private `#$` field that references the same shared insider properties object.
 
 2. **Trust Verification**: The `isTrusted()` function checks whether a class is allowed to access insider state, with flexible implementation options (Array, Set, switch statements, etc.).
 
-3. **Baton Handoff**: A secure handoff mechanism uses a temporary static baton to pass the `#insider` reference from the base class to trusted sub-classes and partner classes. The baton is cleared in a `try/finally` block to ensure cleanup even if errors occur.
+3. **Baton Handoff**: A secure handoff mechanism uses a temporary static baton to pass the `#$` reference from the base class to trusted sub-classes and partner classes. The baton is cleared in a `try/finally` block to ensure cleanup even if errors occur.
 
 4. **Security Verification**: The base class verifies that requesting classes pass the trust check and that their handoff methods are properly frozen before granting access.
 
-5. **Prototype-Based Methods**: Insider objects inherit from a frozen prototype containing shared methods, enabling efficient method sharing without per-instance duplication. The `thys` reference provides access back to the original instance, efficiently eliminating the need for per-instance binding.
+5. **Prototype-Based Methods**: Insider objects inherit from a frozen prototype containing shared methods, enabling efficient method sharing without per-instance duplication. The `__this` reference provides access back to the original instance, efficiently eliminating the need for per-instance binding.
 
 ## Property Access Levels
 
 ```javascript
 class Example extends Base {
-    #insider;
+    #$;
     #privateField;  // Private: only accessible in this class
 
     constructor () {
         super();
-        Base._getInsider(cls, this, () => this.#insider = cls.#insiderBaton);
+        Base._get$(cls, this, () => this.#$ = cls.#insiderBaton);
 
         this.publicField = 'public';           // Public: accessible everywhere
-        this.#insider.insiderField = 'insider'; // Insider: accessible in trusted classes only
+        this.#$.insiderField = 'insider'; // Insider: accessible in trusted classes only
         this.#privateField = 'private';        // Private: only in this class
     }
 }
