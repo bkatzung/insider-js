@@ -1,6 +1,6 @@
 # insider-js
 
-A pattern for implementing "insider" (trusted-only) properties in native JavaScript using ES2022 private fields and explicit trust declarations.
+A pattern for implementing "insider" (trusted/"friend"-only) properties in native JavaScript using ES2022 private fields and explicit trust declarations.
 
 ## Overview
 
@@ -16,7 +16,28 @@ JavaScript's private fields (`#`) provide class-level encapsulation, but sometim
 - **Type Safe**: Works seamlessly with TypeScript
 - **Lightweight**: Minimal overhead with efficient trust verification
 
-## Pattern Application
+## Pattern Selection
+
+If you need inheritance-based access, use the "protected-js" pattern. If you need trust or capability-based access, use the "insider-js" pattern.
+
+| Use Case | Pattern |
+|---|---|
+| Subclass access | protected-js |
+| Classical OOP hierarchy | protected-js |
+| Trusted collaboration | insider-js |
+| Composition-heavy design | insider-js |
+
+## Naming Conventions
+
+- **`#$`**: Private field for accessing the shared insider-state object (formerly `#insider`)
+- **`#insiderBaton`**: Private static field for passing the shared insider-state object
+- **`#__insider`**: Private static field defining the hierarchical insider prototype (formerly `#protoInsider`)
+- **`__this`**: Property on the insider-state object referencing the original instance (formerly `thys`)
+- **`$thys`**: Local variable name for the insider-state object (when `this` refers to it)
+- **`thys`**: Local variable name for the original instance object
+- **`_get$()`**: Base-class method to distribute insider-property access (formerly `_getInsider()`)
+
+## Insider Pattern Application
 
 ### Trust Declaration Pattern
 
@@ -336,8 +357,8 @@ The insider pattern is ideal for:
 
 Works in all modern browsers and Deno / Node.js / etc. environments that support:
 - ES6 Classes
-- Private fields (`#`)
 - ES2015 Modules
+- ES2022 Private fields (`#`)
 
 ## License
 
@@ -351,3 +372,7 @@ This content is placed in the public domain by the author.
 ## Contributing
 
 This is a pattern demonstration. Feel free to adapt it to your needs or suggest improvements via issues and pull requests.
+
+## Credits
+
+- The new, shorter `#$` naming convention was inspired by this [gist](https://gist.github.com/crisdosaygo/636a40f9e47967cf14b0d4b5ebd68e72) by [crisdosaygo](https://github.com/crisdosaygo/).
