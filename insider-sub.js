@@ -3,12 +3,14 @@
  * (Shared #$ (insider) state across base + trusted sub-classes)
  * **Identical to partner-class pattern except base instance is `this`**
  *
- * Last modified: 2026-03-24
+ * Last modified: 2026-08-27
  * Author: Brian Katzung <briank@kappacs.com>
  */
 
  import { Base } from './insider-trusted.js';
 
+ const $GET = Symbol.for('jsInsiderGet');
+ const $PASS = Symbol.for('jsInsiderPass');
  const getProto = Object.getPrototypeOf, setProto = Object.setPrototypeOf;
 
  export const Sub = (() => {
@@ -17,6 +19,7 @@
 		static #__insider = setProto({
 			insiderMethod () {
 				const [thys, $thys] = [this.__this, this];
+
 				// When called as `this.#$.method` (or `insider.method`):
 				// `this` is the insider state object
 				// `this.__this` is the original object (see constructor)
@@ -31,8 +34,10 @@
 			super();
 			// Request this instance's #$ using our class-level static handoff method
 			// and a receiver that loads the instance #$ from the static baton
-			Base._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+			Base[$GET](cls, this, () => this.#$ = cls.#insiderBaton);
+
 			const insider = this.#$, protoInsider = cls.#__insider;
+
 			// Fix #$ prototypes
 			if (!getProto(protoInsider)) Object.freeze(setProto(protoInsider, getProto(insider)));
 			setProto(insider, protoInsider);
@@ -45,7 +50,7 @@
 		 * @param {Object} insider - The requested instance's #$
 		 * @param {Function} receiver - The receiver function to call
 		 */
-		static _pass$ (insider, receiver) {
+		static [$PASS] (insider, receiver) {
 			/*
 			 * Put the instance's #$ into the baton long enough
 			 * for the handoff and then remove it.
@@ -61,10 +66,11 @@
 			// Same class: use native JS cross-instance private #$ access
 			if (other instanceof cls) return other.#$;
 			
-			// instanceof Base (cross-class cross-instance): use Base._get$
+			// instanceof Base (cross-class cross-instance): use Base[$GET]
 			if (other instanceof Base) {
 				let insider;
-				Base._get$(cls, other, () => insider = cls.#insiderBaton);
+
+				Base[$GET](cls, other, () => insider = cls.#insiderBaton);
 				return insider;
 			}
 		}

@@ -5,6 +5,8 @@
 
 import { assertEquals, assertThrows } from 'https://deno.land/std@0.208.0/assert/mod.ts';
 import { Base } from '../insider-trusted.js';
+const $GET = Symbol.for('jsInsiderGet');
+const $PASS = Symbol.for('jsInsiderPass');
 
 Deno.test('Untrusted - class not in trusted list should be rejected', () => {
 	const UntrustedSub = (() => {
@@ -14,10 +16,10 @@ Deno.test('Untrusted - class not in trusted list should be rejected', () => {
 
 			constructor() {
 				super();
-				Base._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+				Base[$GET](cls, this, () => this.#$ = cls.#insiderBaton);
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -34,18 +36,18 @@ Deno.test('Untrusted - class not in trusted list should be rejected', () => {
 	);
 });
 
-Deno.test('Untrusted - class with non-frozen _pass$ should be rejected', () => {
-	// Create a class with writable _pass$
+Deno.test('Untrusted - class with non-frozen $PASS should be rejected', () => {
+	// Create a class with writable $PASS
 	class UnsafeSub extends Base {
 		static #insiderBaton = null;
 		#$;
 
 		constructor() {
 			super();
-			Base._get$(UnsafeSub, this, () => this.#$ = UnsafeSub.#insiderBaton);
+			Base[$GET](UnsafeSub, this, () => this.#$ = UnsafeSub.#insiderBaton);
 		}
 
-		static _pass$(insider, receiver) {
+		static [$PASS](insider, receiver) {
 			UnsafeSub.#insiderBaton = insider;
 			receiver();
 			UnsafeSub.#insiderBaton = null;
@@ -59,14 +61,14 @@ Deno.test('Untrusted - class with non-frozen _pass$ should be rejected', () => {
 	);
 });
 
-Deno.test('Untrusted - class with configurable _pass$ should be rejected', () => {
+Deno.test('Untrusted - class with configurable $PASS should be rejected', () => {
 	const UnsafeSub = class extends Base {
 		static #insiderBaton = null;
 		#$;
 
 		constructor() {
 			super();
-			Base._get$(UnsafeSub, this, () => this.#$ = UnsafeSub.#insiderBaton);
+			Base[$GET](UnsafeSub, this, () => this.#$ = UnsafeSub.#insiderBaton);
 		}
 
 		static #passInsider(insider, receiver) {
@@ -75,7 +77,7 @@ Deno.test('Untrusted - class with configurable _pass$ should be rejected', () =>
 			UnsafeSub.#insiderBaton = null;
 		}
 
-		static get _pass$ () { return this.#passInsider; }
+		static get [$PASS] () { return this.#passInsider; }
 	};
 
 	assertThrows(
@@ -84,16 +86,16 @@ Deno.test('Untrusted - class with configurable _pass$ should be rejected', () =>
 	);
 });
 
-Deno.test('Untrusted - class with non-function _pass$ should be rejected', () => {
+Deno.test('Untrusted - class with non-function $PASS should be rejected', () => {
 	const BadSub = (() => {
 		const cls = Object.freeze(class BadSub extends Base {
-			static _pass$ = 'not a function';
+			static [$PASS] = 'not a function';
 			static #insiderBaton = null;
 			#$;
 
 			constructor() {
 				super();
-				Base._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+				Base[$GET](cls, this, () => this.#$ = cls.#insiderBaton);
 			}
 		});
 		Object.freeze(cls.prototype);
@@ -106,7 +108,7 @@ Deno.test('Untrusted - class with non-function _pass$ should be rejected', () =>
 	);
 });
 
-Deno.test('Untrusted - class without _pass$ should be rejected', () => {
+Deno.test('Untrusted - class without $PASS should be rejected', () => {
 	const NoPassSub = (() => {
 		const cls = Object.freeze(class NoPassSub extends Base {
 			static #insiderBaton = null;
@@ -114,7 +116,7 @@ Deno.test('Untrusted - class without _pass$ should be rejected', () => {
 
 			constructor() {
 				super();
-				Base._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+				Base[$GET](cls, this, () => this.#$ = cls.#insiderBaton);
 			}
 		});
 		Object.freeze(cls.prototype);
@@ -127,12 +129,12 @@ Deno.test('Untrusted - class without _pass$ should be rejected', () => {
 	);
 });
 
-Deno.test('Untrusted - attempting to call _get$ with null receiver', () => {
+Deno.test('Untrusted - attempting to call $GET with null receiver', () => {
 	const instance = new Base();
 	
 	const TestSub = (() => {
 		const cls = Object.freeze(class TestSub extends Base {
-			static _pass$() {}
+			static [$PASS]() {}
 		});
 		Object.freeze(cls.prototype);
 		return cls;
@@ -140,7 +142,7 @@ Deno.test('Untrusted - attempting to call _get$ with null receiver', () => {
 
 	// Should throw because TestSub is not trusted
 	assertThrows(
-		() => Base._get$(TestSub, instance, null),
+		() => Base[$GET](TestSub, instance, null),
 		Error
 	);
 });
@@ -150,11 +152,11 @@ Deno.test('Untrusted - attempting to access insider from outside class hierarchy
 	
 	// Create a completely unrelated class
 	class UnrelatedClass {
-		static _pass$() {}
+		static [$PASS]() {}
 	}
 
 	assertThrows(
-		() => Base._get$(UnrelatedClass, instance, () => {}),
+		() => Base[$GET](UnrelatedClass, instance, () => {}),
 		Error,
 		'Untrusted request'
 	);
@@ -185,10 +187,10 @@ Deno.test('Untrusted - subclass of trusted class is not automatically trusted', 
 			constructor() {
 				super();
 				// This should throw because SubSub is not explicitly trusted
-				Base._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+				Base[$GET](cls, this, () => this.#$ = cls.#insiderBaton);
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -232,7 +234,7 @@ Deno.test('Untrusted - cannot modify Base class or prototype', () => {
 	
 	// Try to modify existing properties
 	assertThrows(() => {
-		Base._get$ = function() {};
+		Base[$GET] = function() {};
 	});
 });
 
@@ -248,14 +250,14 @@ Deno.test('Untrusted - cannot intercept baton during handoff', () => {
 			constructor() {
 				super();
 				// Try to intercept the baton
-				Base._get$(cls, this, () => {
+				Base[$GET](cls, this, () => {
 					interceptedBaton = cls.#insiderBaton;
 					this.#$ = cls.#insiderBaton;
 				});
 				// Expected to throw because MaliciousSub is not trusted
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;

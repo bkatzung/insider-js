@@ -35,7 +35,8 @@ If you need inheritance-based access, use the "protected-js" pattern. If you nee
 - **`__this`**: Property on the insider-state object referencing the original instance (formerly `thys`)
 - **`$thys`**: Local variable name for the insider-state object (when `this` refers to it)
 - **`thys`**: Local variable name for the original instance object
-- **`_get$()`**: Base-class method to distribute insider-property access (formerly `_getInsider()`)
+- **`[$GET]()`**: Base-class method to distribute insider-property access (formerly `_get$()`, `_getInsider()`)
+- **`[$PASS]()`**: Class method to receive/pass insider-property access (formerly `_pass$()`, `_passInsider()`)
 
 ## Insider Pattern Application
 
@@ -44,11 +45,11 @@ If you need inheritance-based access, use the "protected-js" pattern. If you nee
 Define which classes are trusted to access insider state. From [`insider-trusted.js`](insider-trusted.js):
 
 ```javascript
-// "Barrel" bundling of base + trusted sub-classes
-import { Base } from './insider-base.js';
+// "Barrel" bundling of base + trusted partner-classes
+import { Base, $GET, $PASS } from './insider-base.js';
 import { Partner } from './insider-partner.js';
 import { Sub } from './insider-sub.js';
-export { Base, Partner, Sub };
+export { Base, Partner, Sub, $GET, $PASS };
 
 let trusted;
 
@@ -79,22 +80,30 @@ Incorporate the base-class pattern into your base class. Excerpted from [`inside
 // Base-class insider-pattern essentials
 import { isTrusted } from './insider-trusted.js';
 
+// Pattern can use exported local symbols, global symbols, exported
+// global symbols, etc. according to preference
+export const $GET = Symbol.for('jsInsiderGet');
+export const $PASS = Symbol.for('jsInsiderPass');
+
 export const Base = (() => {
 	const cls = Object.freeze(class Base {
 		static #insiderBaton = null; // Per-class handoff baton
 		static #__insider = Object.freeze({
-			insiderMethod() {
+			insiderMethod () {
 				const [thys, $thys] = [this.__this, this];
-				// `thys` is the original object
-				// `$thys` is the insider state object
+
+				// When called as `this.#$.method` (or `insider.method`):
+				// `this` is the insider state object
+				// `this.__this` is the original object (see constructor)
 				if ($thys !== thys.#$) throw new Error('Unauthorized');
 				// ...
 			}
 		});
 		#$; /* Instance insider properties */
 
-		constructor() {
+		constructor () {
 			const insider = this.#$ = Object.create(cls.#__insider);
+
 			insider.__this = this; // Enables insider methods without per-instance binding
 		}
 
@@ -104,14 +113,15 @@ export const Base = (() => {
 		 * @param {Object} instance - The instance whose #$ is requested
 		 * @param {Function} receiver - Baton-receiver/instance-#$-setter function
 		 */
-		static _get$ (reqCls, instance, receiver) {
+		static [$GET] (reqCls, instance, receiver) {
 			// Request must be for a class on the trusted list
 			if (!isTrusted(reqCls)) throw new Error('Untrusted request');
 			// Make sure the handoff class-method is a frozen function
-			const passProps = Object.getOwnPropertyDescriptor(reqCls, '_pass$');
+			const passProps = Object.getOwnPropertyDescriptor(reqCls, $PASS);
+
 			if (typeof passProps.value !== 'function' || passProps.writable !== false || passProps.configurable !== false) throw new Error('Unsafe handoff');
 			// Use the supplied class-level handoff method to pass #$ to the receiver
-			reqCls._pass$(instance.#$, receiver);
+			reqCls[$PASS](instance.#$, receiver);
 		}
 	});
 	Object.freeze(cls.prototype);
@@ -130,7 +140,7 @@ Incorporate the sub-class pattern into your trusted sub-classes. Excerpted from 
 
 ```javascript
 // Sub-class insider-pattern essentials
-import { Base } from './insider-trusted.js';
+import { Base, $GET, $PASS } from './insider-trusted.js';
 
 const getProto = Object.getPrototypeOf, setProto = Object.setPrototypeOf;
 
@@ -138,10 +148,12 @@ export const Sub = (() => {
 	const cls = Object.freeze(class Sub extends Base {
 		static #insiderBaton = null; // Handoff baton
 		static #__insider = setProto({
-			insiderMethod() {
+			insiderMethod () {
 				const [thys, $thys] = [this.__this, this];
-				// `thys` is the original object
-				// `$thys` is the insider state object
+
+				// When called as `this.#$.method` (or `insider.method`):
+				// `this` is the insider state object
+				// `this.__this` is the original object (see constructor)
 				if ($thys !== thys.#$) throw new Error('Unauthorized');
 				// super.insiderMethod();
 			}
@@ -152,19 +164,22 @@ export const Sub = (() => {
 			super();
 			// Request this instance's #$ using our class-level static handoff method
 			// and a receiver that loads the instance #$ from the static baton
-			Base._get$(cls, this, () => this.#$ = cls.#insiderBaton);
-			const insider = this.#$;
+			Base[$GET](cls, this, () => this.#$ = cls.#insiderBaton);
+
+			const insider = this.#$, protoInsider = cls.#__insider;
+
 			// Fix #$ prototypes
-			if (!getProto(cls.#__insider)) Object.freeze(setProto(cls.#__insider, getProto(insider)));
-			setProto(insider, cls.#__insider);
+			if (!getProto(protoInsider)) Object.freeze(setProto(protoInsider, getProto(insider)));
+			setProto(insider, protoInsider);
 		}
 
 		/*
-		 * Baton handoff function (all sub-classes); called by Base._get$
+		 * Baton handoff function (all sub-classes)
+		 * (called by Base[$GET] if trusted)
 		 * @param {Object} insider - The requested instance's #$
 		 * @param {Function} receiver - The receiver function to call
 		 */
-		static _pass$ (insider, receiver) {
+		static [$PASS] (insider, receiver) {
 			/*
 			 * Put the instance's #$ into the baton long enough
 			 * for the handoff and then remove it.
@@ -190,21 +205,26 @@ The insider pattern also supports trusted partner classes that are not part of t
 
 ```javascript
 // Partner-class insider-pattern variant
-import { Base } from './insider-trusted.js';
+import { Base, $GET, $PASS } from './insider-trusted.js';
 
 export const Partner = (() => {
-	const cls = Object.freeze(class Partner { // Unrelated to Base
+	const cls = Object.freeze(class Partner { // ** Unrelated to Base **
 		static #insiderBaton;
 		#$;
 
 		constructor (baseInstance) {
 			// Accept base instance parameter instead of using `this`
-			Base._get$(cls, baseInstance, () => this.#$ = cls.#insiderBaton);
+			Base[$GET](cls, baseInstance, () => this.#$ = cls.#insiderBaton);
 			// Insider properties (this.#$.prop) now available here
 		}
 
-		// Standard handoff-pattern class-method
-		static _pass$ (insider, receiver) {
+		/**
+		 * Standard handoff-pattern class-method
+		 * (called by Base[$GET] if trusted)
+		 * @param {Object} insider - The requested instance's #$
+		 * @param {Function} receiver - The receiver function to call
+		 */
+		static [$PASS] (insider, receiver) {
 			cls.#insiderBaton = insider;
 			try { receiver(); }
 			finally { cls.#insiderBaton = null; }
@@ -257,11 +277,12 @@ class Sub extends Base {
 	#get$For (other) {
 		// Same class: use native JS cross-instance private #$ access
 		if (other instanceof cls) return other.#$;
-		
-		// instanceof Base (cross-class cross-instance): use Base._get$
+
+		// instanceof Base (cross-class cross-instance): use Base[$GET]
 		if (other instanceof Base) {
 			let insider;
-			Base._get$(cls, other, () => insider = cls.#insiderBaton);
+
+			Base[$GET](cls, other, () => insider = cls.#insiderBaton);
 			return insider;
 		}
 	}
@@ -324,7 +345,7 @@ class Example extends Base {
 
     constructor () {
         super();
-        Base._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+        Base[$GET](cls, this, () => this.#$ = cls.#insiderBaton);
 
         this.publicField = 'public';           // Public: accessible everywhere
         this.#$.insiderField = 'insider'; // Insider: accessible in trusted classes only

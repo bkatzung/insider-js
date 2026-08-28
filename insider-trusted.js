@@ -6,11 +6,10 @@
  * different deployments (applications) without changing the module
  * code.
  *
- * Last modified: 2026-02-18
+ * Last modified: 2026-08-27
  * Author: Brian Katzung <briank@kappacs.com>
  */
 
-// "Barrel" bundling of base + trusted partner-classes
 import { Base } from './insider-base.js';
 import { Partner } from './insider-partner.js';
 import { Sub } from './insider-sub.js';

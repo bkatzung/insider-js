@@ -6,6 +6,8 @@
 
 import { assertEquals, assertExists, assertThrows } from 'https://deno.land/std@0.208.0/assert/mod.ts';
 import { Base, Partner } from '../insider-trusted.js';
+const $GET = Symbol.for('jsInsiderGet');
+const $PASS = Symbol.for('jsInsiderPass');
 
 // Create instrumented TestBase for testing with reconfigurable trust list
 let testTrustedClasses = null;
@@ -25,13 +27,13 @@ const TestBase = (() => {
 			}
 		}
 
-		static _get$(reqCls, instance, receiver) {
+		static [$GET](reqCls, instance, receiver) {
 			if (!isTrusted(reqCls)) throw new Error('Untrusted request');
-			const passProps = Object.getOwnPropertyDescriptor(reqCls, '_pass$');
+			const passProps = Object.getOwnPropertyDescriptor(reqCls, $PASS);
 			if (typeof passProps.value !== 'function' || passProps.writable !== false || passProps.configurable !== false) {
 				throw new Error('Unsafe handoff');
 			}
-			reqCls._pass$(instance.#$, receiver);
+			reqCls[$PASS](instance.#$, receiver);
 		}
 
 		getInsider() {
@@ -51,10 +53,10 @@ const TestPartner = (() => {
 
 		constructor(baseInstance) {
 			this.#baseInstance = baseInstance;
-			TestBase._get$(cls, baseInstance, () => this.#$ = cls.#insiderBaton);
+			TestBase[$GET](cls, baseInstance, () => this.#$ = cls.#insiderBaton);
 		}
 
-		static _pass$(insider, receiver) {
+		static [$PASS](insider, receiver) {
 			this.#insiderBaton = insider;
 			receiver();
 			this.#insiderBaton = null;
@@ -68,7 +70,7 @@ const TestPartner = (() => {
 			if (other instanceof cls) return other.#$;
 			if (other instanceof TestBase) {
 				let insider;
-				TestBase._get$(cls, other, () => insider = cls.#insiderBaton);
+				TestBase[$GET](cls, other, () => insider = cls.#insiderBaton);
 				return insider;
 			}
 		}
@@ -100,12 +102,12 @@ Deno.test('Partner class - should be frozen', () => {
 	assertEquals(Object.isFrozen(Partner.prototype), true);
 });
 
-Deno.test('Partner class - should have _pass$ static method', () => {
-	assertEquals(typeof Partner._pass$, 'function');
+Deno.test('Partner class - should have $PASS static method', () => {
+	assertEquals(typeof Partner[$PASS], 'function');
 });
 
-Deno.test('Partner class - _pass$ should be frozen', () => {
-	const passProps = Object.getOwnPropertyDescriptor(Partner, '_pass$');
+Deno.test('Partner class - $PASS should be frozen', () => {
+	const passProps = Object.getOwnPropertyDescriptor(Partner, $PASS);
 	assertEquals(typeof passProps.value, 'function');
 	assertEquals(passProps.writable, false);
 	assertEquals(passProps.configurable, false);
@@ -223,13 +225,13 @@ Deno.test('Partner class - constructor should throw if null is provided', () => 
 	);
 });
 
-Deno.test('Partner class - _pass$ should handle insider handoff correctly', () => {
+Deno.test('Partner class - $PASS should handle insider handoff correctly', () => {
 	// Create a test to verify the handoff mechanism works
 	let receivedInsider = null;
 	const testInsider = { test: 'value' };
 	
-	// Call _pass$ and capture the insider in the receiver
-	Partner._pass$(testInsider, () => {
+	// Call $PASS and capture the insider in the receiver
+	Partner[$PASS](testInsider, () => {
 		// During this callback, the baton should be set
 		// We can't access it directly, but we can verify the callback runs
 		receivedInsider = 'callback-executed';
@@ -292,13 +294,13 @@ Deno.test('Partner class - should not allow modification of prototype', () => {
 	});
 });
 
-Deno.test('Partner class - _pass$ should clear baton after receiver executes', () => {
+Deno.test('Partner class - $PASS should clear baton after receiver executes', () => {
 	// This test verifies that the baton is properly cleared
 	// We can't access the baton directly, but we can verify behavior
 	const testInsider = { test: 'value' };
 	let callbackExecuted = false;
 	
-	Partner._pass$(testInsider, () => {
+	Partner[$PASS](testInsider, () => {
 		callbackExecuted = true;
 	});
 	
@@ -306,7 +308,7 @@ Deno.test('Partner class - _pass$ should clear baton after receiver executes', (
 	
 	// If we call it again, it should work (baton was cleared)
 	callbackExecuted = false;
-	Partner._pass$(testInsider, () => {
+	Partner[$PASS](testInsider, () => {
 		callbackExecuted = true;
 	});
 	
@@ -443,10 +445,10 @@ Deno.test('Partner class - gatedMethod should validate insider parameter', () =>
 			#$;
 
 			constructor(baseInstance) {
-				TestBase._get$(cls, baseInstance, () => this.#$ = cls.#insiderBaton);
+				TestBase[$GET](cls, baseInstance, () => this.#$ = cls.#insiderBaton);
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				try { receiver(); }
 				finally { cls.#insiderBaton = null; }
@@ -501,10 +503,10 @@ Deno.test('Partner class - gatedMethod allows trusted classes to call partner me
 			#$;
 
 			constructor(baseInstance) {
-				TestBase._get$(cls, baseInstance, () => this.#$ = cls.#insiderBaton);
+				TestBase[$GET](cls, baseInstance, () => this.#$ = cls.#insiderBaton);
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				try { receiver(); }
 				finally { cls.#insiderBaton = null; }
@@ -530,10 +532,10 @@ Deno.test('Partner class - gatedMethod allows trusted classes to call partner me
 			#$;
 
 			constructor(baseInstance) {
-				TestBase._get$(cls, baseInstance, () => this.#$ = cls.#insiderBaton);
+				TestBase[$GET](cls, baseInstance, () => this.#$ = cls.#insiderBaton);
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				try { receiver(); }
 				finally { cls.#insiderBaton = null; }
@@ -570,10 +572,10 @@ Deno.test('Partner class - gatedMethod prevents untrusted classes from calling',
 			#$;
 
 			constructor(baseInstance) {
-				TestBase._get$(cls, baseInstance, () => this.#$ = cls.#insiderBaton);
+				TestBase[$GET](cls, baseInstance, () => this.#$ = cls.#insiderBaton);
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				try { receiver(); }
 				finally { cls.#insiderBaton = null; }

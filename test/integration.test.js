@@ -5,6 +5,8 @@
 
 import { assertEquals, assertExists, assertThrows } from 'https://deno.land/std@0.208.0/assert/mod.ts';
 import { Base, Sub } from '../insider-trusted.js';
+const $GET = Symbol.for('jsInsiderGet');
+const $PASS = Symbol.for('jsInsiderPass');
 
 Deno.test('Integration - complete pattern with Base and Sub', () => {
 	const base = new Base();
@@ -26,11 +28,11 @@ Deno.test('Integration - multi-level inheritance with insider access', () => {
 
 			constructor() {
 				super();
-				Base._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+				Base[$GET](cls, this, () => this.#$ = cls.#insiderBaton);
 				this.#$.level = 'subsub';
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -61,11 +63,11 @@ Deno.test('Integration - insider state is per-instance', () => {
 
 			constructor(id) {
 				super();
-				Base._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+				Base[$GET](cls, this, () => this.#$ = cls.#insiderBaton);
 				this.#$.id = id;
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -107,16 +109,16 @@ Deno.test('Integration - frozen classes prevent tampering', () => {
 	});
 });
 
-Deno.test('Integration - _pass$ is frozen on Sub', () => {
-	const passProps = Object.getOwnPropertyDescriptor(Sub, '_pass$');
+Deno.test('Integration - $PASS is frozen on Sub', () => {
+	const passProps = Object.getOwnPropertyDescriptor(Sub, $PASS);
 	
 	assertEquals(typeof passProps.value, 'function');
 	assertEquals(passProps.writable, false);
 	assertEquals(passProps.configurable, false);
 	
-	// Try to replace _pass$
+	// Try to replace $PASS
 	assertThrows(() => {
-		Sub._pass$ = function() {};
+		Sub[$PASS] = function() {};
 	});
 });
 
@@ -167,10 +169,10 @@ Deno.test('Integration - trust mechanism prevents unauthorized access', () => {
 			constructor() {
 				super();
 				// This should throw
-				Base._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+				Base[$GET](cls, this, () => this.#$ = cls.#insiderBaton);
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;

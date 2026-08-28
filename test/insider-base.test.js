@@ -3,6 +3,8 @@
  */
 
 import { assertEquals, assertExists, assertThrows } from 'https://deno.land/std@0.208.0/assert/mod.ts';
+const $GET = Symbol.for('jsInsiderGet');
+const $PASS = Symbol.for('jsInsiderPass');
 let trustedOverride = null;
 
 // Create a test-specific Base class with instrumentation
@@ -24,13 +26,13 @@ const TestBase = (() => {
 		static #insiderBaton = null;
 		#$ = { testProp: 'initialized' };
 
-		static _get$(reqCls, instance, receiver) {
+		static [$GET](reqCls, instance, receiver) {
 			if (!isTrusted(reqCls)) throw new Error('Untrusted request');
-			const passProps = Object.getOwnPropertyDescriptor(reqCls, '_pass$');
+			const passProps = Object.getOwnPropertyDescriptor(reqCls, $PASS);
 			if (typeof passProps.value !== 'function' || passProps.writable !== false || passProps.configurable !== false) {
 				throw new Error('Unsafe handoff');
 			}
-			reqCls._pass$(instance.#$, receiver);
+			reqCls[$PASS](instance.#$, receiver);
 		}
 
 		// Instrumentation methods
@@ -58,10 +60,10 @@ const TestSub = (() => {
 
 		constructor() {
 			super();
-			TestBase._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+			TestBase[$GET](cls, this, () => this.#$ = cls.#insiderBaton);
 		}
 
-		static _pass$(insider, receiver) {
+		static [$PASS](insider, receiver) {
 			cls.#insiderBaton = insider;
 			receiver();
 			cls.#insiderBaton = null;
@@ -78,7 +80,7 @@ const TestSub = (() => {
 // Create an untrusted test class
 const UntrustedClass = (() => {
 	const cls = Object.freeze(class UntrustedClass {
-		static _pass$() {}
+		static [$PASS]() {}
 	});
 	Object.freeze(cls.prototype);
 	return cls;
@@ -90,8 +92,8 @@ Deno.test('Base class - should create an instance successfully', () => {
 	assertEquals(instance instanceof TestBase, true);
 });
 
-Deno.test('Base class - should have _get$ static method', () => {
-	assertEquals(typeof TestBase._get$, 'function');
+Deno.test('Base class - should have $GET static method', () => {
+	assertEquals(typeof TestBase[$GET], 'function');
 });
 
 Deno.test('Base class - should not expose #$ directly', () => {
@@ -110,39 +112,39 @@ Deno.test('Base class - should not expose #insiderBaton directly', () => {
 	assertEquals(TestBase['#insiderBaton'], undefined);
 });
 
-Deno.test('Base class - _get$ should throw on untrusted request', () => {
+Deno.test('Base class - $GET should throw on untrusted request', () => {
 	const instance = new TestBase();
 	
 	assertThrows(
-		() => TestBase._get$(UntrustedClass, instance, () => {}),
+		() => TestBase[$GET](UntrustedClass, instance, () => {}),
 		Error,
 		'Untrusted request'
 	);
 });
 
-Deno.test('Base class - _get$ should throw if handoff method is not frozen', () => {
-	// Create a class with non-frozen _pass$ method
+Deno.test('Base class - $GET should throw if handoff method is not frozen', () => {
+	// Create a class with non-frozen $PASS method
 	class UnsafeClass {
-		static _pass$() {}
+		static [$PASS]() {}
 	}
 	
 	trustedOverride = [UnsafeClass];
 	TestBase.resetTrusted();
 	const instance = new TestBase();
 	
-	// This should throw because _pass$ is writable
+	// This should throw because $PASS is writable
 	assertThrows(
-		() => TestBase._get$(UnsafeClass, instance, () => {}),
+		() => TestBase[$GET](UnsafeClass, instance, () => {}),
 		Error,
 		'Unsafe handoff'
 	);
 	TestBase.resetTrusted();
 });
 
-Deno.test('Base class - _get$ should throw if handoff method is configurable', () => {
-	// Create a class with configurable _pass$ method
+Deno.test('Base class - $GET should throw if handoff method is configurable', () => {
+	// Create a class with configurable $PASS method
 	const cls = class ConfigurableClass {};
-	Object.defineProperty(cls, '_pass$', {
+	Object.defineProperty(cls, $PASS, {
 		value: function() {},
 		writable: false,
 		configurable: true // This should fail
@@ -153,17 +155,17 @@ Deno.test('Base class - _get$ should throw if handoff method is configurable', (
 	const instance = new TestBase();
 	
 	assertThrows(
-		() => TestBase._get$(cls, instance, () => {}),
+		() => TestBase[$GET](cls, instance, () => {}),
 		Error,
 		'Unsafe handoff'
 	);
 	TestBase.resetTrusted();
 });
 
-Deno.test('Base class - _get$ should throw if handoff is not a function', () => {
-	// Create a class with non-function _pass$
+Deno.test('Base class - $GET should throw if handoff is not a function', () => {
+	// Create a class with non-function $PASS
 	const cls = Object.freeze(class NonFunctionClass {
-		static _pass$ = 'not a function';
+		static [$PASS] = 'not a function';
 	});
 	
 	trustedOverride = [cls];
@@ -171,7 +173,7 @@ Deno.test('Base class - _get$ should throw if handoff is not a function', () => 
 	const instance = new TestBase();
 	
 	assertThrows(
-		() => TestBase._get$(cls, instance, () => {}),
+		() => TestBase[$GET](cls, instance, () => {}),
 		Error,
 		'Unsafe handoff'
 	);
@@ -211,10 +213,10 @@ Deno.test('Base class - multiple instances should each have their own insider', 
 	assertEquals(insider2.modified, undefined);
 });
 
-Deno.test('Base class - insider should have thys reference to original instance', () => {
-	// Create a test base with thys reference
-	const TestBaseWithThys = (() => {
-		const cls = Object.freeze(class TestBaseWithThys {
+Deno.test('Base class - insider should have __this reference to original instance', () => {
+	// Create a test base with __this reference
+	const TestBaseWithThis = (() => {
+		const cls = Object.freeze(class TestBaseWithThis {
 			static #insiderBaton = null;
 			static #__insider = Object.freeze({
 				testMethod() {
@@ -228,8 +230,8 @@ Deno.test('Base class - insider should have thys reference to original instance'
 				insider.__this = this;
 			}
 
-			static _get$(reqCls, instance, receiver) {
-				reqCls._pass$(instance.#$, receiver);
+			static [$GET](reqCls, instance, receiver) {
+				reqCls[$PASS](instance.#$, receiver);
 			}
 
 			getInsider() {
@@ -240,13 +242,13 @@ Deno.test('Base class - insider should have thys reference to original instance'
 		return cls;
 	})();
 
-	const instance = new TestBaseWithThys();
+	const instance = new TestBaseWithThis();
 	const insider = instance.getInsider();
 	
-	// thys should reference the original instance
+	// __this should reference the original instance
 	assertEquals(insider.__this, instance);
 	
-	// Insider method should be able to access the instance via thys
+	// Insider method should be able to access the instance via __this
 	assertEquals(insider.testMethod(), instance);
 });
 
@@ -257,7 +259,8 @@ Deno.test('Base class - insider methods should validate caller', () => {
 			static #insiderBaton = null;
 			static #__insider = Object.freeze({
 				secureMethod() {
-					if (this !== this.__this.#$) throw new Error('Unauthorized call');
+					const [thys, $thys] = [this.__this, this];
+					if ($thys !== thys.#$) throw new Error('Unauthorized call');
 					return 'authorized';
 				}
 			});

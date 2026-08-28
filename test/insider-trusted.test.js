@@ -4,6 +4,8 @@
 
 import { assertEquals, assertExists, assertThrows } from 'https://deno.land/std@0.208.0/assert/mod.ts';
 import { Base, Sub, Partner, isTrusted } from '../insider-trusted.js';
+const $GET = Symbol.for('jsInsiderGet');
+const $PASS = Symbol.for('jsInsiderPass');
 
 Deno.test('Trust - isTrusted should be a function', () => {
 	assertExists(isTrusted);
@@ -57,10 +59,10 @@ Deno.test('Trust - Base should reject untrusted classes', () => {
 			constructor() {
 				super();
 				// This should throw because UntrustedSub is not in the trusted list
-				Base._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+				Base[$GET](cls, this, () => this.#$ = cls.#insiderBaton);
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -77,16 +79,16 @@ Deno.test('Trust - Base should reject untrusted classes', () => {
 	);
 });
 
-Deno.test('Trust - Base._get$ should be accessible', () => {
-	assertEquals(typeof Base._get$, 'function');
+Deno.test('Trust - Base[$GET] should be accessible', () => {
+	assertEquals(typeof Base[$GET], 'function');
 });
 
-Deno.test('Trust - Sub._pass$ should be accessible', () => {
-	assertEquals(typeof Sub._pass$, 'function');
+Deno.test('Trust - Sub[$PASS] should be accessible', () => {
+	assertEquals(typeof Sub[$PASS], 'function');
 });
 
-Deno.test('Trust - Partner._pass$ should be accessible', () => {
-	assertEquals(typeof Partner._pass$, 'function');
+Deno.test('Trust - Partner[$PASS] should be accessible', () => {
+	assertEquals(typeof Partner[$PASS], 'function');
 });
 
 Deno.test('Trust - multiple Sub instances should all be trusted', () => {
@@ -110,10 +112,14 @@ Deno.test('Trust - barrel export should provide all necessary components', () =>
 	assertExists(Sub);
 	assertExists(Partner);
 	assertExists(isTrusted);
+	assertExists($GET);
+	assertExists($PASS);
 	
 	// Verify they are the correct types
 	assertEquals(typeof Base, 'function');
 	assertEquals(typeof Sub, 'function');
 	assertEquals(typeof Partner, 'function');
 	assertEquals(typeof isTrusted, 'function');
+	assertEquals(typeof $GET, 'symbol');
+	assertEquals(typeof $PASS, 'symbol');
 });

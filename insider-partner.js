@@ -3,11 +3,14 @@
  * (Shared #$ (insider) state across base + trusted (but unrelated) partner-classes)
  * (Similar to sub-class pattern, but constructor takes a base instance)
  *
- * Last modified: 2026-02-18
+ * Last modified: 2026-08-27
  * Author: Brian Katzung <briank@kappacs.com>
  */
 
 import { Base } from './insider-trusted.js';
+
+const $GET = Symbol.for('jsInsiderGet');
+const $PASS = Symbol.for('jsInsiderPass');
 
 export const Partner = (() => {
 	const cls = Object.freeze(class Partner { // ** Unrelated to Base **
@@ -16,17 +19,17 @@ export const Partner = (() => {
 
 		constructor (baseInstance) {
 			// Accept base instance parameter instead of using `this`
-			Base._get$(cls, baseInstance, () => this.#$ = cls.#insiderBaton);
+			Base[$GET](cls, baseInstance, () => this.#$ = cls.#insiderBaton);
 			// Insider properties (this.#$.prop) now available here
 		}
 
 		/**
 		 * Standard handoff-pattern class-method
-		 * (called by Base._get$ if trusted)
+		 * (called by Base[$GET] if trusted)
 		 * @param {Object} insider - The requested instance's #$
 		 * @param {Function} receiver - The receiver function to call
 		 */
-		static _pass$ (insider, receiver) {
+		static [$PASS] (insider, receiver) {
 			cls.#insiderBaton = insider;
 			try { receiver(); }
 			finally { cls.#insiderBaton = null; }
@@ -44,7 +47,7 @@ export const Partner = (() => {
 			// instanceof Base (cross-class cross-instance): use Base._get$
 			if (other instanceof Base) {
 				let insider;
-				Base._get$(cls, other, () => insider = cls.#insiderBaton);
+				Base[$GET](cls, other, () => insider = cls.#insiderBaton);
 				return insider;
 			}
 		}

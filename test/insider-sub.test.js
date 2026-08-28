@@ -4,6 +4,8 @@
 
 import { assert, assertEquals, assertExists } from 'https://deno.land/std@0.208.0/assert/mod.ts';
 import { Base, Sub } from '../insider-trusted.js';
+const $GET = Symbol.for('jsInsiderGet');
+const $PASS = Symbol.for('jsInsiderPass');
 
 // Create a test Base without trust checks for testing sub-class behavior
 const TestBase = (() => {
@@ -15,9 +17,9 @@ const TestBase = (() => {
 			// No trust checks - just for testing sub-class pattern
 		}
 
-		// Simplified _get$ without trust checks
-		static _get$(reqCls, instance, receiver) {
-			reqCls._pass$(instance.#$, receiver);
+		// Simplified $GET without trust checks
+		static [$GET](reqCls, instance, receiver) {
+			reqCls[$PASS](instance.#$, receiver);
 		}
 	});
 	Object.freeze(cls.prototype);
@@ -31,12 +33,12 @@ Deno.test('Sub class - should create an instance successfully', () => {
 	assertEquals(instance instanceof Base, true);
 });
 
-Deno.test('Sub class - should have _pass$ static method', () => {
-	assertEquals(typeof Sub._pass$, 'function');
+Deno.test('Sub class - should have $PASS static method', () => {
+	assertEquals(typeof Sub[$PASS], 'function');
 });
 
-Deno.test('Sub class - _pass$ should be frozen', () => {
-	const passProps = Object.getOwnPropertyDescriptor(Sub, '_pass$');
+Deno.test('Sub class - $PASS should be frozen', () => {
+	const passProps = Object.getOwnPropertyDescriptor(Sub, $PASS);
 	assertEquals(typeof passProps.value, 'function');
 	assertEquals(passProps.writable, false);
 	assertEquals(passProps.configurable, false);
@@ -66,10 +68,10 @@ Deno.test('Sub class - should receive insider from Base', () => {
 
 			constructor() {
 				super();
-				TestBase._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+				TestBase[$GET](cls, this, () => this.#$ = cls.#insiderBaton);
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -101,13 +103,13 @@ Deno.test('Sub class - baton should be cleared after handoff', () => {
 
 			constructor() {
 				super();
-				TestBase._get$(cls, this, () => {
+				TestBase[$GET](cls, this, () => {
 					this.#$ = cls.#insiderBaton;
 					batonValue = cls.#insiderBaton;
 				});
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -139,10 +141,10 @@ Deno.test('Sub class - multiple instances should each receive their own insider'
 
 			constructor() {
 				super();
-				TestBase._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+				TestBase[$GET](cls, this, () => this.#$ = cls.#insiderBaton);
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -189,10 +191,10 @@ Deno.test('Sub class - insider should persist across method calls', () => {
 
 			constructor() {
 				super();
-				TestBase._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+				TestBase[$GET](cls, this, () => this.#$ = cls.#insiderBaton);
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -227,11 +229,11 @@ Deno.test('Sub class - should use ||= to prevent insider reassignment', () => {
 
 			constructor() {
 				super();
-				TestBase._get$(cls, this, () => this.#$ ||= cls.#insiderBaton);
+				TestBase[$GET](cls, this, () => this.#$ ||= cls.#insiderBaton);
 				this.#$.original = true;
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -273,11 +275,11 @@ Deno.test('Sub class - multi-level inheritance should work', () => {
 
 			constructor() {
 				super();
-				TestBase._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+				TestBase[$GET](cls, this, () => this.#$ = cls.#insiderBaton);
 				this.#$.level = 'sub';
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -298,11 +300,11 @@ Deno.test('Sub class - multi-level inheritance should work', () => {
 
 			constructor() {
 				super();
-				TestBase._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+				TestBase[$GET](cls, this, () => this.#$ = cls.#insiderBaton);
 				this.#$.sublevel = 'subsub';
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -326,7 +328,7 @@ Deno.test('Sub class - multi-level inheritance should work', () => {
 	assertEquals(subInsider.sublevel, 'subsub');
 });
 
-Deno.test('Sub class - _pass$ should properly handle receiver function', () => {
+Deno.test('Sub class - $PASS should properly handle receiver function', () => {
 	let receiverCalled = false;
 	let receivedInsider = null;
 	
@@ -337,14 +339,14 @@ Deno.test('Sub class - _pass$ should properly handle receiver function', () => {
 
 			constructor() {
 				super();
-				TestBase._get$(cls, this, () => {
+				TestBase[$GET](cls, this, () => {
 					receiverCalled = true;
 					receivedInsider = cls.#insiderBaton;
 					this.#$ = cls.#insiderBaton;
 				});
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -361,7 +363,7 @@ Deno.test('Sub class - _pass$ should properly handle receiver function', () => {
 	assertEquals(typeof receivedInsider, 'object');
 });
 
-Deno.test('Sub class - should get null #$ for mismatched class (Sub2 _get$ passing Sub1)', () => {
+Deno.test('Sub class - should get null #$ for mismatched class (Sub2 $GET passing Sub1)', () => {
 	// Create two different trusted sub-classes
 	const TestSub1 = (() => {
 		const cls = Object.freeze(class TestSub1 extends TestBase {
@@ -370,11 +372,11 @@ Deno.test('Sub class - should get null #$ for mismatched class (Sub2 _get$ passi
 
 			constructor() {
 				super();
-				TestBase._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+				TestBase[$GET](cls, this, () => this.#$ = cls.#insiderBaton);
 				this.#$.class = 'Sub1';
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -393,11 +395,11 @@ Deno.test('Sub class - should get null #$ for mismatched class (Sub2 _get$ passi
 
 			constructor() {
 				super();
-				TestBase._get$(TestSub1 /*[sic]*/, this, () => this.#$ = cls.#insiderBaton);
+				TestBase[$GET](TestSub1 /*[sic]*/, this, () => this.#$ = cls.#insiderBaton);
 				receivedInsider = this.#$;
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -420,11 +422,11 @@ Deno.test('Sub class - cross-instance access works across different trusted clas
 
 			constructor(id) {
 				super();
-				TestBase._get$(cls, this, () => this.#$ = cls.#insiderBaton);
+				TestBase[$GET](cls, this, () => this.#$ = cls.#insiderBaton);
 				this.#$.id = id;
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				receiver();
 				cls.#insiderBaton = null;
@@ -435,7 +437,7 @@ Deno.test('Sub class - cross-instance access works across different trusted clas
 				let otherInsider;
 				// #$ is always passed by common Base,
 				// but request must come from trusted class
-				TestBase._get$(cls, other, () => otherInsider = cls.#insiderBaton);
+				TestBase[$GET](cls, other, () => otherInsider = cls.#insiderBaton);
 				return { insider: this.#$, otherInsider };
 			}
 		});
@@ -455,7 +457,7 @@ Deno.test('Sub class - cross-instance access works across different trusted clas
 	assertEquals(otherInsider.id, undefined);
 });
 
-Deno.test('Sub class - _pass$ should use try/finally for safety', () => {
+Deno.test('Sub class - $PASS should use try/finally for safety', () => {
 	let batonCleared = false;
 	
 	const TestSub = (() => {
@@ -465,13 +467,13 @@ Deno.test('Sub class - _pass$ should use try/finally for safety', () => {
 
 			constructor(shouldThrow = false) {
 				super();
-				TestBase._get$(cls, this, () => {
+				TestBase[$GET](cls, this, () => {
 					this.#$ = cls.#insiderBaton;
 					if (shouldThrow) throw new Error('Test error');
 				});
 			}
 
-			static _pass$(insider, receiver) {
+			static [$PASS](insider, receiver) {
 				cls.#insiderBaton = insider;
 				try {
 					receiver();
